@@ -39,6 +39,10 @@ const onWindowClose = (event) => {
   interceptWindowClose = () => {
     const closeBtn = document.querySelector(".mod-close");
     closeBtn.addEventListener("click", onWindowClose, true);
+  },
+  cleanupWindowClose = () => {
+    const closeBtn = document.querySelector(".mod-close");
+    closeBtn.removeEventListener("click", onWindowClose, true);
   };
 
 const setLaunchOnStartup = (plugin) => {
@@ -218,6 +222,7 @@ class TrayPlugin extends obsidian.Plugin {
   }
   onunload() {
     unregisterHotkey(this);
+    cleanupWindowClose();
   }
 
   async loadSettings() {
