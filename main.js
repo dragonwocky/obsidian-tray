@@ -1,4 +1,4 @@
-/* obsidian-tray v0.1.1
+/* obsidian-tray v0.1.2
    by @dragonwocky */
 
 "use strict";
