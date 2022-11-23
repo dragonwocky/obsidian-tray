@@ -1,4 +1,4 @@
-![](thumbnail_large.png)
+<img alt="" src="tray.png" align="right"  height="128px">
 
 **Tray** is an [Obsidian](https://obsidian.md/) plugin that can be used to launch the app
 on system startup and run it in the background, adding an icon to the system tray that it
