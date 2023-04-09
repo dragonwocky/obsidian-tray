@@ -5,8 +5,15 @@
 
 let tray;
 const obsidian = require("obsidian"),
-  { app, BrowserWindow, globalShortcut, Tray, Menu, nativeImage } =
-    require("electron").remote;
+  {
+    app,
+    BrowserWindow,
+    getCurrentWindow,
+    globalShortcut,
+    Tray,
+    Menu,
+    nativeImage,
+  } = require("electron").remote;
 
 const showWindows = () => {
     console.log("obsidian-tray: showing windows");
@@ -54,10 +61,15 @@ const onWindowClose = (event) => {
     closeBtn.removeEventListener("click", onWindowClose, true);
   };
 
-const setLaunchOnStartup = (plugin) => {
+const setHideTaskbarIcon = (plugin) => {
+    const win = getCurrentWindow();
+    win.setSkipTaskbar(plugin.settings.hideTaskbarIcon);
+  },
+  setLaunchOnStartup = (plugin) => {
+    const { launchOnStartup, runInBackground, hideOnLaunch } = plugin.settings;
     app.setLoginItemSettings({
-      openAtLogin: plugin.settings.launchOnStartup,
-      openAsHidden: plugin.settings.runInBackground,
+      openAtLogin: launchOnStartup,
+      openAsHidden: runInBackground && hideOnLaunch,
     });
   },
   relaunchObsidian = () => {
@@ -124,7 +136,7 @@ const OPTIONS = [
     desc: "Open Obsidian automatically whenever you log into your computer.",
     type: "toggle",
     default: false,
-    onChange: (plugin) => setLaunchOnStartup(plugin),
+    onChange: setLaunchOnStartup,
   },
   {
     key: "hideOnLaunch",
@@ -139,7 +151,7 @@ const OPTIONS = [
   {
     key: "runInBackground",
     desc: `
-      Hide the app and continue to run it in the background instead of quitting
+      Hides the app and continues to run it in the background instead of quitting
       it when pressing the window close button or toggle focus hotkey.
     `,
     type: "toggle",
@@ -151,9 +163,19 @@ const OPTIONS = [
     },
   },
   {
+    key: "hideTaskbarIcon",
+    desc: `
+      Hides the window's icon from from the dock/taskbar. Enabling the tray icon first
+      is recommended if using this option. This may not work on all Linux-based OSes.
+    `,
+    type: "toggle",
+    default: true,
+    onChange: setHideTaskbarIcon,
+  },
+  {
     key: "createTrayIcon",
     desc: `
-      Add an icon to your system tray/menubar to bring hidden Obsidian windows
+      Adds an icon to your system tray/menubar to bring hidden Obsidian windows
       back into focus on click or force a full quit/relaunch of the app through
       the right-click menu.
       <br><span class="mod-warning">Changing this option requires a restart to take effect.</span>
@@ -171,8 +193,8 @@ const OPTIONS = [
     `,
     type: "text",
     default: "CmdOrCtrl+Shift+Tab",
-    onBeforeChange: (plugin) => unregisterHotkey(plugin),
-    onChange: (plugin) => registerHotkey(plugin),
+    onBeforeChange: unregisterHotkey,
+    onChange: registerHotkey,
   },
 ];
 
@@ -199,10 +221,10 @@ class SettingsTab extends obsidian.PluginSettingTab {
       const name = keyToLabel(opt.key),
         desc = htmlToFragment(opt.desc),
         onChange = async (value) => {
-          await opt.onBeforeChange?.(this.plugin, value);
+          await opt.onBeforeChange?.(this.plugin);
           this.plugin.settings[opt.key] = value;
           await this.plugin.saveSettings();
-          await opt.onChange?.(this.plugin, value);
+          await opt.onChange?.(this.plugin);
         };
 
       const setting = new obsidian.Setting(this.containerEl)
@@ -235,6 +257,7 @@ class TrayPlugin extends obsidian.Plugin {
     const { settings } = this;
 
     registerHotkey(this);
+    setHideTaskbarIcon(this);
     setLaunchOnStartup(this);
     if (settings.createTrayIcon) createTrayIcon(this);
     if (settings.runInBackground) interceptWindowClose();
