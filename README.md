@@ -1,10 +1,12 @@
 <img alt="" src="tray.png" align="right"  height="128px">
 
 **Tray** is an [Obsidian](https://obsidian.md/) plugin that can be used to launch the app
-on system startup and run it in the background, adding an icon to the system tray that it
-can be minimised to and a global hotkey to toggle visibility of the app's windows.
+on system startup and run it in the background, adding global hotkeys and a tray menu that
+toggle app window visibility and can create quick notes from anywhere in your operating system.
 
 ## Configuration
+
+### Window management
 
 | Option                     | Description                                                                                                                                                                                                                        | Default             |
 | -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------- |
@@ -13,7 +15,15 @@ can be minimised to and a global hotkey to toggle visibility of the app's window
 | Run in background          | Hide the app and continue to run it in the background instead of quitting it when pressing the window close button or toggle focus hotkey.                                                                                         | Disabled            |
 | Hide taskbar icon          | Hides the window's icon from from the dock/taskbar. This may not work on all Linux-based OSes.                                                                                                                                     | Disabled            |
 | Create tray icon           | Add an icon to your system tray/menubar to bring hidden Obsidian windows back into focus on click or force a full quit/relaunch of the app through the right-click menu. _Changing this option requires a restart to take effect._ | Enabled             |
-| Toggle window focus hotkey | Format: [Electron accelerator](https://www.electronjs.org/docs/latest/api/accelerator)                                                                                                                                             | CmdOrCtrl+Shift+Tab |
+| Toggle window focus hotkey | This hotkey is registered globally and will be detected even if Obsidian does not have keyboard focus. Format: [Electron accelerator](https://www.electronjs.org/docs/latest/api/accelerator)                                      | CmdOrCtrl+Shift+Tab |
+
+### Quick notes
+
+| Option                 | Description                                                                                                                                                                                   | Default    |
+| ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
+| Quick note location    | New quick notes will be placed in this folder.                                                                                                                                                |            |
+| Quick note date format | New quick notes will use a filename of this pattern. Format: [Moment.js format string](https://momentjs.com/docs/#/displaying/format/)                                                        | YYYY-MM-DD |
+| Quick note hotkey      | This hotkey is registered globally and will be detected even if Obsidian does not have keyboard focus. Format: [Electron accelerator](https://www.electronjs.org/docs/latest/api/accelerator) | Disabled   |
 
 ## Installation
 
