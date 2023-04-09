@@ -4,7 +4,7 @@
   "author": "dragonwocky",
   "authorUrl": "https://dragonwocky.me/",
   "description": "Launch Obsidian on startup and run it in the background from the system tray.",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "isDesktopOnly": true,
   "minAppVersion": "1.0.0"
 }
