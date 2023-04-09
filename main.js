@@ -238,8 +238,16 @@ class TrayPlugin extends obsidian.Plugin {
     setLaunchOnStartup(this);
     if (settings.createTrayIcon) createTrayIcon(this);
     if (settings.runInBackground) interceptWindowClose();
-    // bug: obsidian will refocus/reshow self if minimised but not fully hidden
-    if (settings.hideOnLaunch) hideWindows(settings.runInBackground);
+    if (settings.hideOnLaunch) {
+      let _hidden;
+      this.registerEvent(
+        this.app.workspace.onLayoutReady(() => {
+          if (_hidden) return;
+          _hidden = true;
+          hideWindows(settings.runInBackground);
+        })
+      );
+    }
   }
   onunload() {
     unregisterHotkey(this);
