@@ -169,7 +169,7 @@ const OPTIONS = [
       is recommended if using this option. This may not work on all Linux-based OSes.
     `,
     type: "toggle",
-    default: true,
+    default: false,
     onChange: setHideTaskbarIcon,
   },
   {
