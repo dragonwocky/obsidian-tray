@@ -5,7 +5,8 @@
 
 let tray;
 const obsidian = require("obsidian"),
-  { app, BrowserWindow, globalShortcut, Tray, Menu, nativeImage } = require("electron").remote;
+  { app, BrowserWindow, globalShortcut, Tray, Menu, nativeImage } =
+    require("electron").remote;
 
 const showWindows = () => {
     console.log("obsidian-tray: showing windows");
@@ -23,24 +24,32 @@ const showWindows = () => {
     ]);
   },
   toggleWindows = (runInBackground, checkForFocus = true) => {
-    const windows = BrowserWindow.getAllWindows();
-    if (windows.some((win) => (!checkForFocus || win.isFocused()) && win.isVisible())) {
+    const windows = BrowserWindow.getAllWindows(),
+      openWindows = windows.some((win) => {
+        return (!checkForFocus || win.isFocused()) && win.isVisible();
+      });
+    if (openWindows) {
       hideWindows(runInBackground);
     } else showWindows();
   };
 
+// let _onbeforeunload;
 const onWindowClose = (event) => {
     event.stopImmediatePropagation();
+    // event.preventDefault();
     console.log("obsidian-tray: intercepting window close");
     const windows = BrowserWindow.getAllWindows(),
       currentWindow = windows.find((win) => win.isFocused());
     currentWindow.hide();
   },
   interceptWindowClose = () => {
+    // _onbeforeunload = window.onbeforeunload;
+    // window.onbeforeunload = onWindowClose;
     const closeBtn = document.querySelector(".mod-close");
     closeBtn.addEventListener("click", onWindowClose, true);
   },
   cleanupWindowClose = () => {
+    // window.onbeforeunload = _onbeforeunload;
     const closeBtn = document.querySelector(".mod-close");
     closeBtn.removeEventListener("click", onWindowClose, true);
   };
@@ -114,16 +123,24 @@ const OPTIONS = [
     key: "launchOnStartup",
     desc: "Open Obsidian automatically whenever you log into your computer.",
     type: "toggle",
-    default: true,
+    default: false,
     onChange: (plugin) => setLaunchOnStartup(plugin),
+  },
+  {
+    key: "hideOnLaunch",
+    desc: `
+      Minimises Obsidian automatically whenever the app is launched. If the
+      "Run in background" option is enabled, windows will be hidden to the system
+      tray/menubar instead of minimised to the taskbar/dock.
+    `,
+    type: "toggle",
+    default: false,
   },
   {
     key: "runInBackground",
     desc: `
       Hide the app and continue to run it in the background instead of quitting
-      it when pressing the window close button or toggle focus hotkey. If both
-      this and "Launch on startup" are enabled, windows will be hidden automatically
-      whenever the app is initialised.
+      it when pressing the window close button or toggle focus hotkey.
     `,
     type: "toggle",
     default: false,
@@ -167,7 +184,9 @@ const keyToLabel = (key) =>
       .map((word) => word.toLowerCase())
       .join(" "),
   htmlToFragment = (html) =>
-    document.createRange().createContextualFragment((html ?? "").replace(/\s+/g, " "));
+    document
+      .createRange()
+      .createContextualFragment((html ?? "").replace(/\s+/g, " "));
 
 class SettingsTab extends obsidian.PluginSettingTab {
   constructor(app, plugin) {
@@ -186,7 +205,9 @@ class SettingsTab extends obsidian.PluginSettingTab {
           await opt.onChange?.(this.plugin, value);
         };
 
-      const setting = new obsidian.Setting(this.containerEl).setName(name).setDesc(desc);
+      const setting = new obsidian.Setting(this.containerEl)
+        .setName(name)
+        .setDesc(desc);
       switch (opt.type) {
         case "toggle":
           setting.addToggle((toggle) =>
@@ -208,17 +229,17 @@ class SettingsTab extends obsidian.PluginSettingTab {
 
 class TrayPlugin extends obsidian.Plugin {
   async onload() {
+    console.log("obsidian-tray: loading");
     await this.loadSettings();
     this.addSettingTab(new SettingsTab(this.app, this));
+    const { settings } = this;
 
-    console.log("obsidian-tray: loading");
-    setLaunchOnStartup(this);
     registerHotkey(this);
-    if (this.settings.runInBackground) {
-      hideWindows(true);
-      interceptWindowClose();
-    }
-    if (this.settings.createTrayIcon) createTrayIcon(this);
+    setLaunchOnStartup(this);
+    if (settings.createTrayIcon) createTrayIcon(this);
+    if (settings.runInBackground) interceptWindowClose();
+    // bug: obsidian will refocus/reshow self if minimised but not fully hidden
+    if (settings.hideOnLaunch) hideWindows(settings.runInBackground);
   }
   onunload() {
     unregisterHotkey(this);
@@ -226,10 +247,8 @@ class TrayPlugin extends obsidian.Plugin {
   }
 
   async loadSettings() {
-    const DEFAULT_SETTINGS = OPTIONS.map((opt) => ({
-      [opt.key]: opt.default,
-    }));
-    this.settings = Object.assign({}, ...DEFAULT_SETTINGS, await this.loadData());
+    const DEFAULT_SETTINGS = OPTIONS.map((opt) => ({ [opt.key]: opt.default }));
+    this.settings = Object.assign(...DEFAULT_SETTINGS, await this.loadData());
   }
   async saveSettings() {
     await this.saveData(this.settings);
