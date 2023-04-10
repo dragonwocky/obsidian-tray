@@ -32,7 +32,6 @@ const LOG_PREFIX = "obsidian-tray",
     <a href="https://momentjs.com/docs/#/displaying/format/" target="_blank" rel="noopener">
     Moment.js format string</a>
   `,
-  REQUIRES_RESTART = `<span class="mod-warning">Changing this option requires a restart to take effect.</span>`,
   // 16x16 base64 obsidian icon: generated from obsidian.asar/icon.png
   OBSIDIAN_BASE64_ICON = `data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAADsMAAA7DAcdvqGQAAAHZSURBVDhPlZKxTxRBFMa/XZcF7nIG7mjxjoRCwomJxgsFdhaASqzQxFDzB1AQKgstLGxIiBQGJBpiCCGx8h+wgYaGgAWNd0dyHofeEYVwt/PmOTMZV9aDIL/s5pvZvPfN9yaL/+HR3eXcypta0m4juFbP5GHuXc9IbunDFc9db/G81/ZzhDMN7g8td47mll4R5BfHwZN4LOaA+fHa259PbUmIYzWkt3e2NZNo3/V9v1vvU6kkstk+tLW3ItUVr/m+c3N8MlkwxYqmBFcbwUQQCNOcyVzDwEAWjuPi5DhAMV/tKOYPX5hCyz8Gz1zX5SmWjBvZfmTSaRBJkGAIoxJHv+pVW2yIGNxOJ8bUVNcFEWLxuG1ia6JercTbttwQTeDwPS0kCMXiXtgk/jQrFUw7ptYSMWApF40yo/ytjHq98fdk3ayVE+cn2CxMb6ruz9qAJKFUKoWza1VJSi/n0+ffgYHdWW2gHuxXymg0gjCB0sjpmiaDnkL3RzDyzLqBUKns2ztQqUR0fk2TwSrGSf1eczqF5vsPZRCQSSAFLk6gqctgQRkc6TWRQLV2YMYQki9OoNkqzFQ9r+WOGuW5CrJbOzyAlPKr6MSGLbkcDwbf35oY/jRkt6cAfgNwowruAMz9AgAAAABJRU5ErkJggg==`,
   log = (message) => console.log(`${LOG_PREFIX}: ${message}`);
@@ -126,7 +125,13 @@ const addQuickNote = () => {
     plugin.app.fileManager.createAndOpenMarkdownFile(name);
     showWindows();
   },
+  destroyTray = () => {
+    tray?.destroy();
+    tray = undefined;
+  },
   createTrayIcon = () => {
+    destroyTray();
+    if (!plugin.settings.createTrayIcon) return;
     log(LOG_TRAY_ICON);
     const obsidianIcon = nativeImage.createFromDataURL(
         plugin.settings.trayIconImage ?? OBSIDIAN_BASE64_ICON
@@ -158,10 +163,6 @@ const addQuickNote = () => {
     tray.setContextMenu(contextMenu);
     tray.setToolTip("Obsidian");
     tray.on("click", () => toggleWindows(false));
-  },
-  destroyTray = () => {
-    tray.destroy();
-    tray = undefined;
   };
 
 const registerHotkeys = () => {
@@ -211,7 +212,7 @@ const OPTIONS = [
     `,
     type: "toggle",
     default: false,
-    onChange: () => {
+    onChange() {
       setLaunchOnStartup();
       const runInBackground = plugin.settings.runInBackground;
       if (!runInBackground) showWindows();
@@ -233,20 +234,20 @@ const OPTIONS = [
       Adds an icon to your system tray/menubar to bring hidden Obsidian windows
       back into focus on click or force a full quit/relaunch of the app through
       the right-click menu.
-      <br>${REQUIRES_RESTART}
     `,
     type: "toggle",
     default: true,
+    onChange: createTrayIcon,
   },
   {
     key: "trayIconImage",
     desc: `
       Set the image used by the tray/menubar icon. Recommended size: 16x16
       <br>Preview: <img data-preview style="height: 16px; vertical-align: bottom;">
-      <br>${REQUIRES_RESTART}
     `,
     type: "image",
     default: OBSIDIAN_BASE64_ICON,
+    onChange: createTrayIcon,
   },
   {
     key: "toggleWindowFocusHotkey",
@@ -295,10 +296,6 @@ const keyToLabel = (key) =>
       .createContextualFragment((html ?? "").replace(/\s+/g, " "));
 
 class SettingsTab extends obsidian.PluginSettingTab {
-  constructor(app, plugin) {
-    super(app, plugin);
-    this.plugin = plugin;
-  }
   display() {
     this.containerEl.empty();
     for (const opt of OPTIONS) {
@@ -311,22 +308,22 @@ class SettingsTab extends obsidian.PluginSettingTab {
         setting.setName(keyToLabel(opt.key));
         setting.setDesc(htmlToFragment(opt.desc));
         const onChange = async (value) => {
-          await opt.onBeforeChange?.(this.plugin);
-          this.plugin.settings[opt.key] = value;
-          await this.plugin.saveSettings();
-          await opt.onChange?.(this.plugin);
+          await opt.onBeforeChange?.();
+          plugin.settings[opt.key] = value;
+          await plugin.saveSettings();
+          await opt.onChange?.();
         };
 
         if (opt.type === "toggle") {
           setting.addToggle((toggle) => {
             toggle
-              .setValue(this.plugin.settings[opt.key] ?? opt.default)
+              .setValue(plugin.settings[opt.key] ?? opt.default)
               .onChange(onChange);
           });
         } else if (opt.type === "image") {
           const previewImg = setting.descEl.querySelector("img[data-preview");
           if (previewImg) {
-            const src = this.plugin.settings[opt.key] ?? opt.default;
+            const src = plugin.settings[opt.key] ?? opt.default;
             previewImg.src = src;
           }
           const fileUpload = setting.descEl.createEl("input");
@@ -351,14 +348,14 @@ class SettingsTab extends obsidian.PluginSettingTab {
             moment
               .setPlaceholder(opt.placeholder)
               .setDefaultFormat(opt.default ?? "")
-              .setValue(this.plugin.settings[opt.key] ?? opt.default ?? "")
+              .setValue(plugin.settings[opt.key] ?? opt.default ?? "")
               .onChange(onChange);
           });
         } else {
           setting.addText((text) => {
             text
               .setPlaceholder(opt.placeholder)
-              .setValue(this.plugin.settings[opt.key] ?? opt.default ?? "")
+              .setValue(plugin.settings[opt.key] ?? opt.default ?? "")
               .onChange(onChange);
           });
         }
@@ -375,11 +372,11 @@ class TrayPlugin extends obsidian.Plugin {
     const { settings } = this;
 
     plugin = this;
+    createTrayIcon();
     registerHotkeys();
     setHideTaskbarIcon();
     setLaunchOnStartup();
     observeChildWindows();
-    if (settings.createTrayIcon) createTrayIcon();
     if (settings.runInBackground) interceptWindowClose();
     if (settings.hideOnLaunch) {
       this.registerEvent(this.app.workspace.onLayoutReady(hideWindows));
