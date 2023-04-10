@@ -357,6 +357,14 @@ class TrayPlugin extends obsidian.Plugin {
         })
       );
     }
+
+    // add as command: can be called from command palette
+    // and can have non-global hotkey assigned via in-app menu
+    this.addCommand({
+      id: "relaunch-app",
+      name: ACTION_RELAUNCH,
+      callback: relaunchObsidian,
+    });
   }
   onunload() {
     log(LOG_CLEANUP);

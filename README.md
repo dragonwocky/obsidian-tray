@@ -17,6 +17,11 @@ toggle app window visibility and can create quick notes from anywhere in your op
 | Create tray icon           | Add an icon to your system tray/menubar to bring hidden Obsidian windows back into focus on click or force a full quit/relaunch of the app through the right-click menu. _Changing this option requires a restart to take effect._ | Enabled             |
 | Toggle window focus hotkey | This hotkey is registered globally and will be detected even if Obsidian does not have keyboard focus. Format: [Electron accelerator](https://www.electronjs.org/docs/latest/api/accelerator)                                      | CmdOrCtrl+Shift+Tab |
 
+> **Note**
+> The `Relaunch Obsidian` action can be triggered from the tray/menubar context menu, or with the in-app
+> command palette (search for "Tray: Relaunch Obsidian"). Hotkeys can be assigned to the command via
+> Obsidian's built-in hotkey manager.
+
 ### Quick notes
 
 | Option                 | Description                                                                                                                                                                                   | Default           |
