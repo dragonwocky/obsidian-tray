@@ -19,10 +19,9 @@ const obsidian = require("obsidian"),
 
 const showWindows = () => {
     console.log("obsidian-tray: showing windows");
-    const windows = BrowserWindow.getAllWindows(),
-      currentWindow = windows.find((win) => win.isFocused()) || windows[0];
+    const windows = BrowserWindow.getAllWindows();
     windows.forEach((win) => win.show());
-    currentWindow.focus();
+    getCurrentWindow().focus();
   },
   hideWindows = (runInBackground) => {
     console.log("obsidian-tray: hiding windows");
@@ -42,31 +41,32 @@ const showWindows = () => {
     } else showWindows();
   };
 
-// let _onbeforeunload;
-const onWindowClose = (event) => {
-    event.stopImmediatePropagation();
-    // event.preventDefault();
+const onWindowClose = (event) => event.preventDefault(),
+  onWindowUnload = (event) => {
     console.log("obsidian-tray: intercepting window close");
-    const windows = BrowserWindow.getAllWindows(),
-      currentWindow = windows.find((win) => win.isFocused());
-    currentWindow.hide();
+    getCurrentWindow().hide();
+    event.stopImmediatePropagation();
+    // setting return value manually is more reliable than
+    // via `return false` according to electron
+    event.returnValue = false;
   },
   interceptWindowClose = () => {
-    // _onbeforeunload = window.onbeforeunload;
-    // window.onbeforeunload = onWindowClose;
-    const closeBtn = document.querySelector(".mod-close");
-    closeBtn.addEventListener("click", onWindowClose, true);
+    // intercept in renderer
+    window.addEventListener("beforeunload", onWindowUnload, true);
+    // intercept in main: is asynchronously executed when registered
+    // from renderer, so won't prevent close by itself, but counteracts
+    // the 3-second delayed window force close in obsidian.asar/main.js
+    getCurrentWindow().on("close", onWindowClose);
   },
   cleanupWindowClose = () => {
-    // window.onbeforeunload = _onbeforeunload;
-    const closeBtn = document.querySelector(".mod-close");
-    closeBtn.removeEventListener("click", onWindowClose, true);
+    getCurrentWindow().removeListener("close", onWindowClose);
+    window.removeEventListener("beforeunload", onWindowUnload, true);
   };
 
 const addQuickNote = (plugin) => {
     const { quickNoteLocation, quickNoteDateFormat } = plugin.settings,
-      format = quickNoteDateFormat || DEFAULT_DATE_FORMAT,
-      date = obsidian.moment().format(format),
+      pattern = quickNoteDateFormat || DEFAULT_DATE_FORMAT,
+      date = obsidian.moment().format(pattern),
       name = obsidian
         .normalizePath(`${quickNoteLocation ?? ""}/${date}`)
         .replace(/\*|"|\\|<|>|:|\||\?/g, "-");
@@ -74,8 +74,7 @@ const addQuickNote = (plugin) => {
     showWindows();
   },
   setHideTaskbarIcon = (plugin) => {
-    const win = getCurrentWindow();
-    win.setSkipTaskbar(plugin.settings.hideTaskbarIcon);
+    getCurrentWindow().setSkipTaskbar(plugin.settings.hideTaskbarIcon);
   },
   setLaunchOnStartup = (plugin) => {
     const { launchOnStartup, runInBackground, hideOnLaunch } = plugin.settings;
