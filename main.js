@@ -161,7 +161,7 @@ const addQuickNote = () => {
       ]);
     tray = new Tray(obsidianIcon);
     tray.setContextMenu(contextMenu);
-    tray.setToolTip("Obsidian");
+    tray.setToolTip(plugin.app.vault.getName() ?? "Obsidian");
     tray.on("click", () => toggleWindows(false));
   };
 
