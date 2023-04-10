@@ -37,40 +37,37 @@ const LOG_PREFIX = "obsidian-tray",
   OBSIDIAN_BASE64_ICON = `data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAADsMAAA7DAcdvqGQAAAHZSURBVDhPlZKxTxRBFMa/XZcF7nIG7mjxjoRCwomJxgsFdhaASqzQxFDzB1AQKgstLGxIiBQGJBpiCCGx8h+wgYaGgAWNd0dyHofeEYVwt/PmOTMZV9aDIL/s5pvZvPfN9yaL/+HR3eXcypta0m4juFbP5GHuXc9IbunDFc9db/G81/ZzhDMN7g8td47mll4R5BfHwZN4LOaA+fHa259PbUmIYzWkt3e2NZNo3/V9v1vvU6kkstk+tLW3ItUVr/m+c3N8MlkwxYqmBFcbwUQQCNOcyVzDwEAWjuPi5DhAMV/tKOYPX5hCyz8Gz1zX5SmWjBvZfmTSaRBJkGAIoxJHv+pVW2yIGNxOJ8bUVNcFEWLxuG1ia6JercTbttwQTeDwPS0kCMXiXtgk/jQrFUw7ptYSMWApF40yo/ytjHq98fdk3ayVE+cn2CxMb6ruz9qAJKFUKoWza1VJSi/n0+ffgYHdWW2gHuxXymg0gjCB0sjpmiaDnkL3RzDyzLqBUKns2ztQqUR0fk2TwSrGSf1eczqF5vsPZRCQSSAFLk6gqctgQRkc6TWRQLV2YMYQki9OoNkqzFQ9r+WOGuW5CrJbOzyAlPKr6MSGLbkcDwbf35oY/jRkt6cAfgNwowruAMz9AgAAAABJRU5ErkJggg==`,
   log = (message) => console.log(`${LOG_PREFIX}: ${message}`);
 
-let tray;
+let tray, plugin;
 const obsidian = require("obsidian"),
-  {
-    app,
-    BrowserWindow,
-    getCurrentWindow,
-    globalShortcut,
-    Tray,
-    Menu,
-    nativeImage,
-  } = require("electron").remote;
+  { app, Tray, Menu, nativeImage } = require("electron").remote,
+  { getCurrentWindow, globalShortcut } = require("electron").remote;
 
-const showWindows = () => {
-    log(LOG_SHOWING_WINDOWS);
-    const windows = BrowserWindow.getAllWindows();
-    windows.forEach((win) => win.show());
-    getCurrentWindow().focus();
+const childWindows = new Set(),
+  observeChildWindows = () => {
+    getCurrentWindow().webContents.on("did-create-window", (win) => {
+      childWindows.add(win);
+      win.on("close", () => childWindows.delete(win));
+      win.setSkipTaskbar(plugin.settings.hideTaskbarIcon);
+    });
   },
-  hideWindows = (runInBackground) => {
+  getAllWindows = () => [...childWindows, getCurrentWindow()],
+  showWindows = () => {
+    log(LOG_SHOWING_WINDOWS);
+    getAllWindows().forEach((win) => win.show());
+  },
+  hideWindows = () => {
     log(LOG_HIDING_WINDOWS);
-    const windows = BrowserWindow.getAllWindows();
-    windows.forEach((win) => [
+    getAllWindows().forEach((win) => [
       win.isFocused() && win.blur(),
-      runInBackground ? win.hide() : win.minimize(),
+      plugin.settings.runInBackground ? win.hide() : win.minimize(),
     ]);
   },
-  toggleWindows = (runInBackground, checkForFocus = true) => {
-    const windows = BrowserWindow.getAllWindows(),
-      openWindows = windows.some((win) => {
-        return (!checkForFocus || win.isFocused()) && win.isVisible();
-      });
-    if (openWindows) {
-      hideWindows(runInBackground);
-    } else showWindows();
+  toggleWindows = (checkForFocus = true) => {
+    const openWindows = getAllWindows().some((win) => {
+      return (!checkForFocus || win.isFocused()) && win.isVisible();
+    });
+    if (openWindows) hideWindows();
+    else showWindows();
   };
 
 const onWindowClose = (event) => event.preventDefault(),
@@ -90,15 +87,17 @@ const onWindowClose = (event) => event.preventDefault(),
     // the 3-second delayed window force close in obsidian.asar/main.js
     getCurrentWindow().on("close", onWindowClose);
   },
-  cleanupWindowClose = () => {
+  allowWindowClose = () => {
     getCurrentWindow().removeListener("close", onWindowClose);
     window.removeEventListener("beforeunload", onWindowUnload, true);
   };
 
-const setHideTaskbarIcon = (plugin) => {
-    getCurrentWindow().setSkipTaskbar(plugin.settings.hideTaskbarIcon);
+const setHideTaskbarIcon = () => {
+    getAllWindows().forEach((win) => {
+      win.setSkipTaskbar(plugin.settings.hideTaskbarIcon);
+    });
   },
-  setLaunchOnStartup = (plugin) => {
+  setLaunchOnStartup = () => {
     const { launchOnStartup, runInBackground, hideOnLaunch } = plugin.settings;
     app.setLoginItemSettings({
       openAtLogin: launchOnStartup,
@@ -108,9 +107,16 @@ const setHideTaskbarIcon = (plugin) => {
   relaunchObsidian = () => {
     app.relaunch();
     app.exit(0);
+  },
+  quitObsidian = () => {
+    log(LOG_CLEANUP);
+    unregisterHotkeys();
+    allowWindowClose();
+    destroyTray();
+    getAllWindows().forEach((win) => win.destroy());
   };
 
-const addQuickNote = (plugin) => {
+const addQuickNote = () => {
     const { quickNoteLocation, quickNoteDateFormat } = plugin.settings,
       pattern = quickNoteDateFormat || DEFAULT_DATE_FORMAT,
       date = obsidian.moment().format(pattern),
@@ -120,7 +126,7 @@ const addQuickNote = (plugin) => {
     plugin.app.fileManager.createAndOpenMarkdownFile(name);
     showWindows();
   },
-  createTrayIcon = (plugin) => {
+  createTrayIcon = () => {
     log(LOG_TRAY_ICON);
     const obsidianIcon = nativeImage.createFromDataURL(
         plugin.settings.trayIconImage ?? OBSIDIAN_BASE64_ICON
@@ -130,7 +136,7 @@ const addQuickNote = (plugin) => {
           type: "normal",
           label: ACTION_QUICK_NOTE,
           accelerator: plugin.settings.quickNoteHotkey,
-          click: () => addQuickNote(plugin),
+          click: addQuickNote,
         },
         {
           type: "normal",
@@ -146,41 +152,35 @@ const addQuickNote = (plugin) => {
         },
         { type: "separator" },
         { label: ACTION_RELAUNCH, click: relaunchObsidian },
-        { label: ACTION_QUIT, role: "quit" },
+        { label: ACTION_QUIT, click: quitObsidian },
       ]);
     tray = new Tray(obsidianIcon);
     tray.setContextMenu(contextMenu);
     tray.setToolTip("Obsidian");
-    tray.on("click", () =>
-      toggleWindows(plugin.settings.runInBackground, false)
-    );
+    tray.on("click", () => toggleWindows(false));
+  },
+  destroyTray = () => {
+    tray.destroy();
+    tray = undefined;
   };
 
-const registerHotkeys = (plugin) => {
+const registerHotkeys = () => {
     log(LOG_REGISTER_HOTKEY);
     try {
-      const toggleAccelerator = plugin.settings.toggleWindowFocusHotkey,
-        quicknoteAccelerator = plugin.settings.quickNoteHotkey;
-      if (toggleAccelerator) {
-        globalShortcut.register(toggleAccelerator, () => {
-          const runInBackground = plugin.settings.runInBackground;
-          toggleWindows(runInBackground);
-        });
+      const { toggleWindowFocusHotkey, quickNoteHotkey } = plugin.settings;
+      if (toggleWindowFocusHotkey) {
+        globalShortcut.register(toggleWindowFocusHotkey, toggleWindows);
       }
-      if (quicknoteAccelerator) {
-        globalShortcut.register(quicknoteAccelerator, () => {
-          addQuickNote(plugin);
-        });
+      if (quickNoteHotkey) {
+        globalShortcut.register(quickNoteHotkey, addQuickNote);
       }
     } catch {}
   },
-  unregisterHotkeys = (plugin) => {
+  unregisterHotkeys = () => {
     log(LOG_UNREGISTER_HOTKEY);
     try {
-      const toggle = plugin.settings.toggleWindowFocusHotkey,
-        quicknote = plugin.settings.quickNoteHotkey;
-      globalShortcut.unregister(toggle);
-      globalShortcut.unregister(quicknote);
+      globalShortcut.unregister(plugin.settings.toggleWindowFocusHotkey);
+      globalShortcut.unregister(plugin.settings.quickNoteHotkey);
     } catch {}
   };
 
@@ -211,8 +211,8 @@ const OPTIONS = [
     `,
     type: "toggle",
     default: false,
-    onChange: (plugin) => {
-      setLaunchOnStartup(plugin);
+    onChange: () => {
+      setLaunchOnStartup();
       const runInBackground = plugin.settings.runInBackground;
       if (!runInBackground) showWindows();
     },
@@ -374,20 +374,15 @@ class TrayPlugin extends obsidian.Plugin {
     this.addSettingTab(new SettingsTab(this.app, this));
     const { settings } = this;
 
-    registerHotkeys(this);
-    setHideTaskbarIcon(this);
-    setLaunchOnStartup(this);
-    if (settings.createTrayIcon) createTrayIcon(this);
+    plugin = this;
+    registerHotkeys();
+    setHideTaskbarIcon();
+    setLaunchOnStartup();
+    observeChildWindows();
+    if (settings.createTrayIcon) createTrayIcon();
     if (settings.runInBackground) interceptWindowClose();
     if (settings.hideOnLaunch) {
-      let _hidden;
-      this.registerEvent(
-        this.app.workspace.onLayoutReady(() => {
-          if (_hidden) return;
-          _hidden = true;
-          hideWindows(settings.runInBackground);
-        })
-      );
+      this.registerEvent(this.app.workspace.onLayoutReady(hideWindows));
     }
 
     // add as command: can be called from command palette
@@ -400,8 +395,9 @@ class TrayPlugin extends obsidian.Plugin {
   }
   onunload() {
     log(LOG_CLEANUP);
-    unregisterHotkeys(this);
-    cleanupWindowClose();
+    unregisterHotkeys();
+    allowWindowClose();
+    destroyTray();
   }
 
   async loadSettings() {
