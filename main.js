@@ -122,7 +122,9 @@ const addQuickNote = (plugin) => {
   },
   createTrayIcon = (plugin) => {
     log(LOG_TRAY_ICON);
-    const obsidianIcon = nativeImage.createFromDataURL(OBSIDIAN_BASE64_ICON),
+    const obsidianIcon = nativeImage.createFromDataURL(
+        plugin.settings.trayIconImage ?? OBSIDIAN_BASE64_ICON
+      ),
       contextMenu = Menu.buildFromTemplate([
         {
           type: "normal",
@@ -237,6 +239,16 @@ const OPTIONS = [
     default: true,
   },
   {
+    key: "trayIconImage",
+    desc: `
+      Set the image used by the tray/menubar icon. Recommended size: 16x16
+      <br>Preview: <img data-preview style="height: 16px; vertical-align: bottom;">
+      <br>${REQUIRES_RESTART}
+    `,
+    type: "image",
+    default: OBSIDIAN_BASE64_ICON,
+  },
+  {
     key: "toggleWindowFocusHotkey",
     desc: ACCELERATOR_FORMAT,
     type: "hotkey",
@@ -310,6 +322,27 @@ class SettingsTab extends obsidian.PluginSettingTab {
             toggle
               .setValue(this.plugin.settings[opt.key] ?? opt.default)
               .onChange(onChange);
+          });
+        } else if (opt.type === "image") {
+          const previewImg = setting.descEl.querySelector("img[data-preview");
+          if (previewImg) {
+            const src = this.plugin.settings[opt.key] ?? opt.default;
+            previewImg.src = src;
+          }
+          const fileUpload = setting.descEl.createEl("input");
+          fileUpload.style.visibility = "hidden";
+          fileUpload.type = "file";
+          fileUpload.onchange = (event) => {
+            const file = event.target.files[0],
+              reader = new FileReader();
+            reader.onloadend = () => {
+              onChange(reader.result);
+              if (previewImg) previewImg.src = reader.result;
+            };
+            reader.readAsDataURL(file);
+          };
+          setting.addButton((button) => {
+            button.setIcon("image").onClick(() => fileUpload.click());
           });
         } else if (opt.type === "moment") {
           setting.addMomentFormat((moment) => {
