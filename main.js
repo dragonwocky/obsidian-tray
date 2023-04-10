@@ -3,7 +3,36 @@
 
 "use strict";
 
-const DEFAULT_DATE_FORMAT = "YYYY-MM-DD";
+const LOG_PREFIX = "obsidian-tray",
+  LOG_LOADING = "loading",
+  LOG_CLEANUP = "cleaning up",
+  LOG_SHOWING_WINDOWS = "showing windows",
+  LOG_HIDING_WINDOWS = "hiding windows",
+  LOG_WINDOW_CLOSE = "intercepting window close",
+  LOG_TRAY_ICON = "creating tray icon",
+  LOG_REGISTER_HOTKEY = "registering hotkey",
+  LOG_UNREGISTER_HOTKEY = "unregistering hotkey",
+  ACTION_QUICK_NOTE = "Add Quick Note",
+  ACTION_OPEN = "Open Obsidian",
+  ACTION_HIDE = "Hide Obsidian",
+  ACTION_RELAUNCH = "Relaunch Obsidian",
+  ACTION_QUIT = "Quit Obsidian",
+  DEFAULT_DATE_FORMAT = "YYYY-MM-DD",
+  ACCELERATOR_FORMAT = `
+    This hotkey is registered globally and will be detected even if Obsidian does
+    not have keyboard focus. Format:
+    <a href="https://www.electronjs.org/docs/latest/api/accelerator" target="_blank" rel="noopener">
+    Electron accelerator</a>
+  `,
+  MOMENT_FORMAT = `
+    Format:
+    <a href="https://momentjs.com/docs/#/displaying/format/" target="_blank" rel="noopener">
+    Moment.js format string</a>
+    <br>Preview:
+  `,
+  // 16x16 base64 obsidian icon: generated from obsidian.asar/icon.png
+  OBSIDIAN_BASE64_ICON = `data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAADsMAAA7DAcdvqGQAAAHZSURBVDhPlZKxTxRBFMa/XZcF7nIG7mjxjoRCwomJxgsFdhaASqzQxFDzB1AQKgstLGxIiBQGJBpiCCGx8h+wgYaGgAWNd0dyHofeEYVwt/PmOTMZV9aDIL/s5pvZvPfN9yaL/+HR3eXcypta0m4juFbP5GHuXc9IbunDFc9db/G81/ZzhDMN7g8td47mll4R5BfHwZN4LOaA+fHa259PbUmIYzWkt3e2NZNo3/V9v1vvU6kkstk+tLW3ItUVr/m+c3N8MlkwxYqmBFcbwUQQCNOcyVzDwEAWjuPi5DhAMV/tKOYPX5hCyz8Gz1zX5SmWjBvZfmTSaRBJkGAIoxJHv+pVW2yIGNxOJ8bUVNcFEWLxuG1ia6JercTbttwQTeDwPS0kCMXiXtgk/jQrFUw7ptYSMWApF40yo/ytjHq98fdk3ayVE+cn2CxMb6ruz9qAJKFUKoWza1VJSi/n0+ffgYHdWW2gHuxXymg0gjCB0sjpmiaDnkL3RzDyzLqBUKns2ztQqUR0fk2TwSrGSf1eczqF5vsPZRCQSSAFLk6gqctgQRkc6TWRQLV2YMYQki9OoNkqzFQ9r+WOGuW5CrJbOzyAlPKr6MSGLbkcDwbf35oY/jRkt6cAfgNwowruAMz9AgAAAABJRU5ErkJggg==`,
+  log = (message) => console.log(`${LOG_PREFIX}: ${message}`);
 
 let tray;
 const obsidian = require("obsidian"),
@@ -18,13 +47,13 @@ const obsidian = require("obsidian"),
   } = require("electron").remote;
 
 const showWindows = () => {
-    console.log("obsidian-tray: showing windows");
+    log(LOG_SHOWING_WINDOWS);
     const windows = BrowserWindow.getAllWindows();
     windows.forEach((win) => win.show());
     getCurrentWindow().focus();
   },
   hideWindows = (runInBackground) => {
-    console.log("obsidian-tray: hiding windows");
+    log(LOG_HIDING_WINDOWS);
     const windows = BrowserWindow.getAllWindows();
     windows.forEach((win) => [
       win.isFocused() && win.blur(),
@@ -43,7 +72,7 @@ const showWindows = () => {
 
 const onWindowClose = (event) => event.preventDefault(),
   onWindowUnload = (event) => {
-    console.log("obsidian-tray: intercepting window close");
+    log(LOG_WINDOW_CLOSE);
     getCurrentWindow().hide();
     event.stopImmediatePropagation();
     // setting return value manually is more reliable than
@@ -63,17 +92,7 @@ const onWindowClose = (event) => event.preventDefault(),
     window.removeEventListener("beforeunload", onWindowUnload, true);
   };
 
-const addQuickNote = (plugin) => {
-    const { quickNoteLocation, quickNoteDateFormat } = plugin.settings,
-      pattern = quickNoteDateFormat || DEFAULT_DATE_FORMAT,
-      date = obsidian.moment().format(pattern),
-      name = obsidian
-        .normalizePath(`${quickNoteLocation ?? ""}/${date}`)
-        .replace(/\*|"|\\|<|>|:|\||\?/g, "-");
-    plugin.app.fileManager.createAndOpenMarkdownFile(name);
-    showWindows();
-  },
-  setHideTaskbarIcon = (plugin) => {
+const setHideTaskbarIcon = (plugin) => {
     getCurrentWindow().setSkipTaskbar(plugin.settings.hideTaskbarIcon);
   },
   setLaunchOnStartup = (plugin) => {
@@ -88,49 +107,52 @@ const addQuickNote = (plugin) => {
     app.exit(0);
   };
 
-const createTrayIcon = (plugin) => {
-  console.log("obsidian-tray: creating tray icon");
-  const obsidianIcon = nativeImage.createFromDataURL(
-      // 16x16 base64 obsidian icon: generated from obsidian.asar/icon.png
-      `data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAADsMAAA7DAcdvqGQAAAHZSURBVDhPlZKxTxRBFMa/XZcF7nIG7mjxjoRCwomJxgsFdhaASqzQxFDzB1AQKgstLGxIiBQGJBpiCCGx8h+wgYaGgAWNd0dyHofeEYVwt/PmOTMZV9aDIL/s5pvZvPfN9yaL/+HR3eXcypta0m4juFbP5GHuXc9IbunDFc9db/G81/ZzhDMN7g8td47mll4R5BfHwZN4LOaA+fHa259PbUmIYzWkt3e2NZNo3/V9v1vvU6kkstk+tLW3ItUVr/m+c3N8MlkwxYqmBFcbwUQQCNOcyVzDwEAWjuPi5DhAMV/tKOYPX5hCyz8Gz1zX5SmWjBvZfmTSaRBJkGAIoxJHv+pVW2yIGNxOJ8bUVNcFEWLxuG1ia6JercTbttwQTeDwPS0kCMXiXtgk/jQrFUw7ptYSMWApF40yo/ytjHq98fdk3ayVE+cn2CxMb6ruz9qAJKFUKoWza1VJSi/n0+ffgYHdWW2gHuxXymg0gjCB0sjpmiaDnkL3RzDyzLqBUKns2ztQqUR0fk2TwSrGSf1eczqF5vsPZRCQSSAFLk6gqctgQRkc6TWRQLV2YMYQki9OoNkqzFQ9r+WOGuW5CrJbOzyAlPKr6MSGLbkcDwbf35oY/jRkt6cAfgNwowruAMz9AgAAAABJRU5ErkJggg==`
-    ),
-    contextMenu = Menu.buildFromTemplate([
-      {
-        type: "normal",
-        label: "Add Quick Note",
-        accelerator: plugin.settings.quickNoteHotkey,
-        click: () => addQuickNote(plugin),
-      },
-      {
-        type: "normal",
-        label: "Open Obsidian",
-        accelerator: plugin.settings.toggleWindowFocusHotkey,
-        click: showWindows,
-      },
-      {
-        type: "normal",
-        label: "Hide Obsidian",
-        accelerator: plugin.settings.toggleWindowFocusHotkey,
-        click: hideWindows,
-      },
-      { type: "separator" },
-      {
-        label: "Relaunch Obsidian",
-        click: relaunchObsidian,
-      },
-      {
-        label: "Quit Obsidian",
-        role: "quit",
-      },
-    ]);
-  tray = new Tray(obsidianIcon);
-  tray.setContextMenu(contextMenu);
-  tray.setToolTip("Obsidian");
-  tray.on("click", () => toggleWindows(plugin.settings.runInBackground, false));
-};
+const addQuickNote = (plugin) => {
+    const { quickNoteLocation, quickNoteDateFormat } = plugin.settings,
+      pattern = quickNoteDateFormat || DEFAULT_DATE_FORMAT,
+      date = obsidian.moment().format(pattern),
+      name = obsidian
+        .normalizePath(`${quickNoteLocation ?? ""}/${date}`)
+        .replace(/\*|"|\\|<|>|:|\||\?/g, "-");
+    plugin.app.fileManager.createAndOpenMarkdownFile(name);
+    showWindows();
+  },
+  createTrayIcon = (plugin) => {
+    log(LOG_TRAY_ICON);
+    const obsidianIcon = nativeImage.createFromDataURL(OBSIDIAN_BASE64_ICON),
+      contextMenu = Menu.buildFromTemplate([
+        {
+          type: "normal",
+          label: ACTION_QUICK_NOTE,
+          accelerator: plugin.settings.quickNoteHotkey,
+          click: () => addQuickNote(plugin),
+        },
+        {
+          type: "normal",
+          label: ACTION_OPEN,
+          accelerator: plugin.settings.toggleWindowFocusHotkey,
+          click: showWindows,
+        },
+        {
+          type: "normal",
+          label: ACTION_HIDE,
+          accelerator: plugin.settings.toggleWindowFocusHotkey,
+          click: hideWindows,
+        },
+        { type: "separator" },
+        { label: ACTION_RELAUNCH, click: relaunchObsidian },
+        { label: ACTION_QUIT, role: "quit" },
+      ]);
+    tray = new Tray(obsidianIcon);
+    tray.setContextMenu(contextMenu);
+    tray.setToolTip("Obsidian");
+    tray.on("click", () =>
+      toggleWindows(plugin.settings.runInBackground, false)
+    );
+  };
 
 const registerHotkeys = (plugin) => {
-    console.log("obsidian-tray: registering hotkey");
+    log(LOG_REGISTER_HOTKEY);
     try {
       const toggleAccelerator = plugin.settings.toggleWindowFocusHotkey,
         quicknoteAccelerator = plugin.settings.quickNoteHotkey;
@@ -148,7 +170,7 @@ const registerHotkeys = (plugin) => {
     } catch {}
   },
   unregisterHotkeys = (plugin) => {
-    console.log("obsidian-tray: unregistering hotkey");
+    log(LOG_UNREGISTER_HOTKEY);
     try {
       const toggle = plugin.settings.toggleWindowFocusHotkey,
         quicknote = plugin.settings.quickNoteHotkey;
@@ -248,18 +270,6 @@ const keyToLabel = (key) =>
       .createRange()
       .createContextualFragment((html ?? "").replace(/\s+/g, " "));
 
-const acceleratorFormat = `
-    This hotkey is registered globally and will be detected even if Obsidian does
-    not have keyboard focus. Format:
-    <a href="https://www.electronjs.org/docs/latest/api/accelerator" target="_blank" rel="noopener">
-    Electron accelerator</a>
-  `,
-  momentFormat = `
-    Format:
-    <a href="https://momentjs.com/docs/#/displaying/format/" target="_blank" rel="noopener">
-    Moment.js format string</a>
-    <br>Preview:
-  `;
 class SettingsTab extends obsidian.PluginSettingTab {
   constructor(app, plugin) {
     super(app, plugin);
@@ -278,12 +288,12 @@ class SettingsTab extends obsidian.PluginSettingTab {
         }
         if (opt.type === "hotkey") {
           opt.desc ??= "";
-          opt.desc += acceleratorFormat;
+          opt.desc += ACCELERATOR_FORMAT;
           opt.onBeforeChange = unregisterHotkeys;
           opt.onChange = registerHotkeys;
         }
         if (opt.type === "moment") {
-          opt.desc = `${opt.desc ? `${opt.desc}<br>` : ""}${momentFormat}`;
+          opt.desc = `${opt.desc ? `${opt.desc}<br>` : ""}${MOMENT_FORMAT}`;
         }
 
         setting.setName(keyToLabel(opt.key));
@@ -327,7 +337,7 @@ class SettingsTab extends obsidian.PluginSettingTab {
 
 class TrayPlugin extends obsidian.Plugin {
   async onload() {
-    console.log("obsidian-tray: loading");
+    log(LOG_LOADING);
     await this.loadSettings();
     this.addSettingTab(new SettingsTab(this.app, this));
     const { settings } = this;
@@ -349,6 +359,7 @@ class TrayPlugin extends obsidian.Plugin {
     }
   }
   onunload() {
+    log(LOG_CLEANUP);
     unregisterHotkeys(this);
     cleanupWindowClose();
   }
