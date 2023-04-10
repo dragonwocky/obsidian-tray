@@ -1,10 +1,10 @@
 {
-  "id": "obsidian-tray",
+  "id": "tray",
   "name": "Tray",
   "author": "dragonwocky",
   "authorUrl": "https://dragonwocky.me/",
   "description": "Launch Obsidian on startup and run it in the background from the system tray.",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "isDesktopOnly": true,
   "minAppVersion": "1.0.0"
 }
