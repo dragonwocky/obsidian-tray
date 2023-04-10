@@ -31,8 +31,8 @@ const LOG_PREFIX = "obsidian-tray",
     Format:
     <a href="https://momentjs.com/docs/#/displaying/format/" target="_blank" rel="noopener">
     Moment.js format string</a>
-    <br>Preview:
   `,
+  REQUIRES_RESTART = `<span class="mod-warning">Changing this option requires a restart to take effect.</span>`,
   // 16x16 base64 obsidian icon: generated from obsidian.asar/icon.png
   OBSIDIAN_BASE64_ICON = `data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAADsMAAA7DAcdvqGQAAAHZSURBVDhPlZKxTxRBFMa/XZcF7nIG7mjxjoRCwomJxgsFdhaASqzQxFDzB1AQKgstLGxIiBQGJBpiCCGx8h+wgYaGgAWNd0dyHofeEYVwt/PmOTMZV9aDIL/s5pvZvPfN9yaL/+HR3eXcypta0m4juFbP5GHuXc9IbunDFc9db/G81/ZzhDMN7g8td47mll4R5BfHwZN4LOaA+fHa259PbUmIYzWkt3e2NZNo3/V9v1vvU6kkstk+tLW3ItUVr/m+c3N8MlkwxYqmBFcbwUQQCNOcyVzDwEAWjuPi5DhAMV/tKOYPX5hCyz8Gz1zX5SmWjBvZfmTSaRBJkGAIoxJHv+pVW2yIGNxOJ8bUVNcFEWLxuG1ia6JercTbttwQTeDwPS0kCMXiXtgk/jQrFUw7ptYSMWApF40yo/ytjHq98fdk3ayVE+cn2CxMb6ruz9qAJKFUKoWza1VJSi/n0+ffgYHdWW2gHuxXymg0gjCB0sjpmiaDnkL3RzDyzLqBUKns2ztQqUR0fk2TwSrGSf1eczqF5vsPZRCQSSAFLk6gqctgQRkc6TWRQLV2YMYQki9OoNkqzFQ9r+WOGuW5CrJbOzyAlPKr6MSGLbkcDwbf35oY/jRkt6cAfgNwowruAMz9AgAAAABJRU5ErkJggg==`,
   log = (message) => console.log(`${LOG_PREFIX}: ${message}`);
@@ -231,15 +231,18 @@ const OPTIONS = [
       Adds an icon to your system tray/menubar to bring hidden Obsidian windows
       back into focus on click or force a full quit/relaunch of the app through
       the right-click menu.
-      <br><span class="mod-warning">Changing this option requires a restart to take effect.</span>
+      <br>${REQUIRES_RESTART}
     `,
     type: "toggle",
     default: true,
   },
   {
     key: "toggleWindowFocusHotkey",
+    desc: ACCELERATOR_FORMAT,
     type: "hotkey",
     default: "CmdOrCtrl+Shift+Tab",
+    onBeforeChange: unregisterHotkeys,
+    onChange: registerHotkeys,
   },
   "Quick notes",
   {
@@ -250,14 +253,20 @@ const OPTIONS = [
   },
   {
     key: "quickNoteDateFormat",
-    desc: "New quick notes will use a filename of this pattern.",
+    desc: `
+      New quick notes will use a filename of this pattern. ${MOMENT_FORMAT}
+      <br>Preview: <b class="u-pop" data-preview></b>
+    `,
     type: "moment",
     default: DEFAULT_DATE_FORMAT,
   },
   {
     key: "quickNoteHotkey",
+    desc: ACCELERATOR_FORMAT,
     type: "hotkey",
     default: "CmdOrCtrl+Shift+Q",
+    onBeforeChange: unregisterHotkeys,
+    onChange: registerHotkeys,
   },
 ];
 
@@ -286,19 +295,7 @@ class SettingsTab extends obsidian.PluginSettingTab {
         setting.setName(opt);
         setting.setHeading();
       } else {
-        if (opt.default) {
-          opt.placeholder ??= `Example: ${opt.default}`;
-        }
-        if (opt.type === "hotkey") {
-          opt.desc ??= "";
-          opt.desc += ACCELERATOR_FORMAT;
-          opt.onBeforeChange = unregisterHotkeys;
-          opt.onChange = registerHotkeys;
-        }
-        if (opt.type === "moment") {
-          opt.desc = `${opt.desc ? `${opt.desc}<br>` : ""}${MOMENT_FORMAT}`;
-        }
-
+        if (opt.default) opt.placeholder ??= `Example: ${opt.default}`;
         setting.setName(keyToLabel(opt.key));
         setting.setDesc(htmlToFragment(opt.desc));
         const onChange = async (value) => {
@@ -316,13 +313,12 @@ class SettingsTab extends obsidian.PluginSettingTab {
           });
         } else if (opt.type === "moment") {
           setting.addMomentFormat((moment) => {
-            const sampleEl = setting.descEl.createEl("b");
-            sampleEl.className = "u-pop";
+            const previewEl = setting.descEl.querySelector("[data-preview]");
+            if (previewEl) moment.setSampleEl(previewEl);
             moment
               .setPlaceholder(opt.placeholder)
               .setDefaultFormat(opt.default ?? "")
               .setValue(this.plugin.settings[opt.key] ?? opt.default ?? "")
-              .setSampleEl(sampleEl)
               .onChange(onChange);
           });
         } else {
