@@ -125,6 +125,9 @@ const addQuickNote = () => {
     plugin.app.fileManager.createAndOpenMarkdownFile(name);
     showWindows();
   },
+  replaceVaultName = (str) => {
+    return str.replace(/{{vault}}/g, plugin.app.vault.getName());
+  },
   destroyTray = () => {
     tray?.destroy();
     tray = undefined;
@@ -161,7 +164,7 @@ const addQuickNote = () => {
       ]);
     tray = new Tray(obsidianIcon);
     tray.setContextMenu(contextMenu);
-    tray.setToolTip(plugin.app.vault.getName() ?? "Obsidian");
+    tray.setToolTip(replaceVaultName(plugin.settings.trayIconTooltip));
     tray.on("click", () => toggleWindows(false));
   };
 
@@ -222,7 +225,7 @@ const OPTIONS = [
     key: "hideTaskbarIcon",
     desc: `
       Hides the window's icon from from the dock/taskbar. Enabling the tray icon first
-      is recommended if using this option. This may not work on all Linux-based OSes.
+      is recommended if using this option. This may not work on Linux-based OSes.
     `,
     type: "toggle",
     default: false,
@@ -247,6 +250,18 @@ const OPTIONS = [
     `,
     type: "image",
     default: OBSIDIAN_BASE64_ICON,
+    onChange: createTrayIcon,
+  },
+  {
+    key: "trayIconTooltip",
+    desc: `
+      Set a title to identify the tray/menubar icon by. The
+      <code>{{vault}}</code> placeholder will be replaced by the vault name.
+      <br>Preview: <b class="u-pop" data-preview></b>
+    `,
+    type: "text",
+    default: "{{vault}} | Obsidian",
+    postprocessor: replaceVaultName,
     onChange: createTrayIcon,
   },
   {
@@ -314,18 +329,14 @@ class SettingsTab extends obsidian.PluginSettingTab {
           await opt.onChange?.();
         };
 
+        const value = plugin.settings[opt.key] ?? opt.default ?? "";
         if (opt.type === "toggle") {
           setting.addToggle((toggle) => {
-            toggle
-              .setValue(plugin.settings[opt.key] ?? opt.default)
-              .onChange(onChange);
+            toggle.setValue(value).onChange(onChange);
           });
         } else if (opt.type === "image") {
           const previewImg = setting.descEl.querySelector("img[data-preview");
-          if (previewImg) {
-            const src = plugin.settings[opt.key] ?? opt.default;
-            previewImg.src = src;
-          }
+          if (previewImg) previewImg.src = value;
           const fileUpload = setting.descEl.createEl("input");
           fileUpload.style.visibility = "hidden";
           fileUpload.type = "file";
@@ -348,15 +359,21 @@ class SettingsTab extends obsidian.PluginSettingTab {
             moment
               .setPlaceholder(opt.placeholder)
               .setDefaultFormat(opt.default ?? "")
-              .setValue(plugin.settings[opt.key] ?? opt.default ?? "")
+              .setValue(value)
               .onChange(onChange);
           });
         } else {
+          const previewEl = setting.descEl.querySelector("[data-preview]"),
+            updatePreview = (value) => {
+              if (!previewEl) return;
+              previewEl.innerText = opt?.postprocessor(value) ?? value;
+            };
+          updatePreview(value);
           setting.addText((text) => {
             text
               .setPlaceholder(opt.placeholder)
-              .setValue(plugin.settings[opt.key] ?? opt.default ?? "")
-              .onChange(onChange);
+              .setValue(value)
+              .onChange((value) => [onChange(value), updatePreview(value)]);
           });
         }
       }
