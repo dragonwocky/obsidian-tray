@@ -1,8 +1,8 @@
 <img alt="" src="tray.png" align="right"  height="128px">
 
 **Tray** is an [Obsidian](https://obsidian.md/) plugin that can be used to launch the app
-on system startup and run it in the background, adding global hotkeys and a tray menu that
-toggle app window visibility and can create quick notes from anywhere in your operating system.
+on system startup and run it in the background, adding global hotkeys and a tray menu to
+toggle window visibility and create quick notes from anywhere in your operating system.
 
 ## Configuration
 
