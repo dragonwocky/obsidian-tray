@@ -15,11 +15,11 @@ const LOG_PREFIX = "obsidian-tray",
   LOG_TRAY_ICON = "creating tray icon",
   LOG_REGISTER_HOTKEY = "registering hotkey",
   LOG_UNREGISTER_HOTKEY = "unregistering hotkey",
-  ACTION_QUICK_NOTE = "Add Quick Note",
-  ACTION_OPEN = "Open Obsidian",
-  ACTION_HIDE = "Hide Obsidian",
+  ACTION_QUICK_NOTE = "Quick Note",
+  ACTION_SHOW = "Show Vault",
+  ACTION_HIDE = "Hide Vault",
   ACTION_RELAUNCH = "Relaunch Obsidian",
-  ACTION_QUIT = "Quit Obsidian",
+  ACTION_CLOSE = "Close Vault",
   DEFAULT_DATE_FORMAT = "YYYY-MM-DD",
   ACCELERATOR_FORMAT = `
     This hotkey is registered globally and will be detected even if Obsidian does
@@ -103,11 +103,11 @@ const setHideTaskbarIcon = () => {
       openAsHidden: runInBackground && hideOnLaunch,
     });
   },
-  relaunchObsidian = () => {
+  relaunchApp = () => {
     app.relaunch();
     app.exit(0);
   },
-  quitObsidian = () => {
+  closeVault = () => {
     log(LOG_CLEANUP);
     unregisterHotkeys();
     allowWindowClose();
@@ -148,7 +148,7 @@ const addQuickNote = () => {
         },
         {
           type: "normal",
-          label: ACTION_OPEN,
+          label: ACTION_SHOW,
           accelerator: plugin.settings.toggleWindowFocusHotkey,
           click: showWindows,
         },
@@ -159,8 +159,8 @@ const addQuickNote = () => {
           click: hideWindows,
         },
         { type: "separator" },
-        { label: ACTION_RELAUNCH, click: relaunchObsidian },
-        { label: ACTION_QUIT, click: quitObsidian },
+        { label: ACTION_RELAUNCH, click: relaunchApp },
+        { label: ACTION_CLOSE, click: closeVault },
       ]);
     tray = new Tray(obsidianIcon);
     tray.setContextMenu(contextMenu);
@@ -404,7 +404,7 @@ class TrayPlugin extends obsidian.Plugin {
     this.addCommand({
       id: "relaunch-app",
       name: ACTION_RELAUNCH,
-      callback: relaunchObsidian,
+      callback: relaunchApp,
     });
   }
   onunload() {
