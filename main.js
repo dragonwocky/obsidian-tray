@@ -1,5 +1,5 @@
 /**
- * obsidian-tray v0.3.1
+ * obsidian-tray v0.3.2
  * (c) 2023 dragonwocky <thedragonring.bod@gmail.com> (https://dragonwocky.me/)
  * (https://github.com/dragonwocky/obsidian-tray/) under the MIT license
  */
