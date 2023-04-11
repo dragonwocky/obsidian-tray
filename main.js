@@ -406,6 +406,11 @@ class TrayPlugin extends obsidian.Plugin {
       name: ACTION_RELAUNCH,
       callback: relaunchApp,
     });
+    this.addCommand({
+      id: "close-vault",
+      name: ACTION_CLOSE,
+      callback: closeVault,
+    });
   }
   onunload() {
     log(LOG_CLEANUP);

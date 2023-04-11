@@ -19,9 +19,9 @@ toggle app window visibility and can create quick notes from anywhere in your op
 | Tray icon tooltip          | Set a title to identify the tray/menubar icon by. The `{{vault}}` placeholder will be replaced by the vault name.                                                                                        | `{{vault}} \| Obsidian`        |
 | Toggle window focus hotkey | This hotkey is registered globally and will be detected even if Obsidian does not have keyboard focus. Format: [Electron accelerator](https://www.electronjs.org/docs/latest/api/accelerator)            | <kbd>CmdOrCtrl+Shift+Tab</kbd> |
 
-The `Relaunch Obsidian` action can be triggered from the tray/menubar context menu, or with the in-app
-command palette (search for "Tray: Relaunch Obsidian"). Hotkeys can be assigned to the command via
-Obsidian's built-in hotkey manager.
+The `Relaunch Obsidian` and `Close Vault` actions can be triggered from the tray/menubar context menu,
+or with the in-app command palette (search for "Tray: Relaunch Obsidian" or "Tray: Close Vault").
+Hotkeys can be assigned to the commands via Obsidian's built-in hotkey manager.
 
 ### Quick notes
 
