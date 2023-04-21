@@ -33,7 +33,7 @@ Hotkeys can be assigned to the commands via Obsidian's built-in hotkey manager.
 
 ## Installation
 
-### Obsidian Marketplace (Coming Soon)
+### Obsidian Marketplace
 
 1. In Obsidian, navigate to **Settings** → **Community plugins**.
 2. Press the **Browse** button beside the **Community plugins** option.
