@@ -69,6 +69,21 @@ const childWindows = new Set(),
     else showWindows();
   };
 
+let isMaximized = false;
+const onMinimize = () => {
+    if (isMaximized) getCurrentWindow().maximize();
+    hideWindows();
+  }, interceptWindowMinimize = () => {
+    isMaximized = getCurrentWindow().isMaximized();
+    getCurrentWindow().on("maximize", () => {
+      isMaximized = true;
+    });
+    getCurrentWindow().on("unmaximize", () => {
+      isMaximized = false;
+    });
+    getCurrentWindow().on("minimize", onMinimize);
+  };
+
 const onWindowClose = (event) => event.preventDefault(),
   onWindowUnload = (event) => {
     log(LOG_WINDOW_CLOSE);
@@ -394,7 +409,10 @@ class TrayPlugin extends obsidian.Plugin {
     setHideTaskbarIcon();
     setLaunchOnStartup();
     observeChildWindows();
-    if (settings.runInBackground) interceptWindowClose();
+    if (settings.runInBackground) {
+      interceptWindowMinimize();
+      interceptWindowClose();
+    }
     if (settings.hideOnLaunch) {
       this.registerEvent(this.app.workspace.onLayoutReady(hideWindows));
     }
