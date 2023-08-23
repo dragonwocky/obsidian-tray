@@ -41,47 +41,41 @@ const obsidian = require("obsidian"),
   { app, Tray, Menu, nativeImage } = require("electron").remote,
   { getCurrentWindow, globalShortcut } = require("electron").remote;
 
-const childWindows = new Set(),
-  observeChildWindows = () => {
-    getCurrentWindow().webContents.on("did-create-window", (win) => {
-      childWindows.add(win);
-      win.on("close", () => childWindows.delete(win));
+const vaultWindows = new Set(),
+  maximizedWindows = new Set(),
+  getWindows = () => [...vaultWindows],
+  observeWindows = () => {
+    const onWindowCreation = (win) => {
+      vaultWindows.add(win);
       win.setSkipTaskbar(plugin.settings.hideTaskbarIcon);
-    });
+      win.on("close", () => vaultWindows.delete(win));
+      // preserve maximised windows after minimisation
+      if (win.isMaximized()) maximizedWindows.add(win);
+      win.on("maximize", () => maximizedWindows.add(win));
+      win.on("unmaximize", () => maximizedWindows.delete(win));
+    };
+    onWindowCreation(getCurrentWindow());
+    getCurrentWindow().webContents.on("did-create-window", onWindowCreation);
   },
-  getAllWindows = () => [...childWindows, getCurrentWindow()],
   showWindows = () => {
     log(LOG_SHOWING_WINDOWS);
-    getAllWindows().forEach((win) => win.show());
+    getWindows().forEach((win) => {
+      maximizedWindows.has(win) ? win.maximize() : win.show();
+    });
   },
   hideWindows = () => {
     log(LOG_HIDING_WINDOWS);
-    getAllWindows().forEach((win) => [
+    getWindows().forEach((win) => [
       win.isFocused() && win.blur(),
       plugin.settings.runInBackground ? win.hide() : win.minimize(),
     ]);
   },
   toggleWindows = (checkForFocus = true) => {
-    const openWindows = getAllWindows().some((win) => {
+    const openWindows = getWindows().some((win) => {
       return (!checkForFocus || win.isFocused()) && win.isVisible();
     });
     if (openWindows) hideWindows();
     else showWindows();
-  };
-
-let isMaximized = false;
-const onMinimize = () => {
-    if (isMaximized) getCurrentWindow().maximize();
-    hideWindows();
-  }, interceptWindowMinimize = () => {
-    isMaximized = getCurrentWindow().isMaximized();
-    getCurrentWindow().on("maximize", () => {
-      isMaximized = true;
-    });
-    getCurrentWindow().on("unmaximize", () => {
-      isMaximized = false;
-    });
-    getCurrentWindow().on("minimize", onMinimize);
   };
 
 const onWindowClose = (event) => event.preventDefault(),
@@ -107,7 +101,7 @@ const onWindowClose = (event) => event.preventDefault(),
   };
 
 const setHideTaskbarIcon = () => {
-    getAllWindows().forEach((win) => {
+    getWindows().forEach((win) => {
       win.setSkipTaskbar(plugin.settings.hideTaskbarIcon);
     });
   },
@@ -127,7 +121,7 @@ const setHideTaskbarIcon = () => {
     unregisterHotkeys();
     allowWindowClose();
     destroyTray();
-    getAllWindows().forEach((win) => win.destroy());
+    getWindows().forEach((win) => win.destroy());
   };
 
 const addQuickNote = () => {
@@ -408,11 +402,8 @@ class TrayPlugin extends obsidian.Plugin {
     registerHotkeys();
     setHideTaskbarIcon();
     setLaunchOnStartup();
-    observeChildWindows();
-    if (settings.runInBackground) {
-      interceptWindowMinimize();
-      interceptWindowClose();
-    }
+    observeWindows();
+    if (settings.runInBackground) interceptWindowClose();
     if (settings.hideOnLaunch) {
       this.registerEvent(this.app.workspace.onLayoutReady(hideWindows));
     }
