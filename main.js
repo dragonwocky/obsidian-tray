@@ -193,7 +193,13 @@ const addQuickNote = () => {
     tray = new Tray(obsidianIcon);
     tray.setContextMenu(contextMenu);
     tray.setToolTip(replaceVaultName(plugin.settings.trayIconTooltip));
-    tray.on("click", () => toggleWindows(false));
+    tray.on("click", () => {
+      if (process.platform === "darwin") {
+        // macos does not register separate left/right click actions
+        // for menu items, icon should open menu w/out causing toggle
+        tray.popUpContextMenu();
+      } else toggleWindows(false);
+    });
   };
 
 const registerHotkeys = () => {
