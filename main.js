@@ -38,7 +38,8 @@ const LOG_PREFIX = "obsidian-tray",
 
 let tray, plugin;
 const obsidian = require("obsidian"),
-  { app, Tray, Menu, nativeImage } = require("electron").remote,
+  { app, Tray, Menu } = require("electron").remote,
+  { nativeImage, BrowserWindow } = require("electron").remote,
   { getCurrentWindow, globalShortcut } = require("electron").remote;
 
 const vaultWindows = new Set(),
@@ -48,7 +49,9 @@ const vaultWindows = new Set(),
     const onWindowCreation = (win) => {
       vaultWindows.add(win);
       win.setSkipTaskbar(plugin.settings.hideTaskbarIcon);
-      win.on("close", () => vaultWindows.delete(win));
+      win.on("close", () => {
+        if (win !== getCurrentWindow()) vaultWindows.delete(win);
+      });
       // preserve maximised windows after minimisation
       if (win.isMaximized()) maximizedWindows.add(win);
       win.on("maximize", () => maximizedWindows.add(win));
@@ -125,7 +128,9 @@ const setLaunchOnStartup = () => {
     unregisterHotkeys();
     allowWindowClose();
     destroyTray();
-    getWindows().forEach((win) => win.destroy());
+    for (const win of getWindows()) win.destroy();
+    // force app quit if no windows remain on macos
+    if (!BrowserWindow.getAllWindows().length) app.quit();
   };
 
 const addQuickNote = () => {
@@ -240,8 +245,8 @@ const OPTIONS = [
     default: false,
     onChange() {
       setLaunchOnStartup();
-      const runInBackground = plugin.settings.runInBackground;
-      if (!runInBackground) showWindows();
+      if (plugin.settings.runInBackground) interceptWindowClose();
+      else [allowWindowClose(), showWindows()];
     },
   },
   {
