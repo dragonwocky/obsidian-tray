@@ -1,5 +1,5 @@
 /**
- * obsidian-tray v0.3.3
+ * obsidian-tray v0.3.4
  * (c) 2023 dragonwocky <thedragonring.bod@gmail.com> (https://dragonwocky.me/)
  * (https://github.com/dragonwocky/obsidian-tray/) under the MIT license
  */
@@ -130,8 +130,18 @@ const addQuickNote = () => {
       date = obsidian.moment().format(pattern),
       name = obsidian
         .normalizePath(`${quickNoteLocation ?? ""}/${date}`)
-        .replace(/\*|"|\\|<|>|:|\||\?/g, "-");
-    plugin.app.fileManager.createAndOpenMarkdownFile(name);
+        .replace(/\*|"|\\|<|>|:|\||\?/g, "-"),
+      // manually create and open file instead of depending
+      // on createAndOpenMarkdownFile to force file creation
+      // relative to the root instead of the active file
+      // (in case user has default location for new notes
+      // set to "same folder as current file")
+      leaf = plugin.app.workspace.getLeaf(),
+      root = plugin.app.fileManager.getNewFileParent(""),
+      openMode = { active: true, state: { mode: "source" } };
+    plugin.app.fileManager
+      .createNewMarkdownFile(root, name)
+      .then((file) => leaf.openFile(file, openMode));
     showWindows();
   },
   replaceVaultName = (str) => {
