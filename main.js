@@ -100,12 +100,16 @@ const onWindowClose = (event) => event.preventDefault(),
     window.removeEventListener("beforeunload", onWindowUnload, true);
   };
 
-const setHideTaskbarIcon = () => {
-    getWindows().forEach((win) => {
-      win.setSkipTaskbar(plugin.settings.hideTaskbarIcon);
-    });
+const hideTaskbarIcons = () => {
+    getWindows().forEach((win) => win.setSkipTaskbar(true));
+    if (process.platform === "darwin") app.dock.hide();
   },
-  setLaunchOnStartup = () => {
+  showTaskbarIcons = () => {
+    getWindows().forEach((win) => win.setSkipTaskbar(false));
+    if (process.platform === "darwin") app.dock.show();
+  };
+
+const setLaunchOnStartup = () => {
     const { launchOnStartup, runInBackground, hideOnLaunch } = plugin.settings;
     app.setLoginItemSettings({
       openAtLogin: launchOnStartup,
@@ -248,7 +252,10 @@ const OPTIONS = [
     `,
     type: "toggle",
     default: false,
-    onChange: setHideTaskbarIcon,
+    onChange() {
+      if (plugin.settings.hideTaskbarIcon) hideTaskbarIcons();
+      else showTaskbarIcons();
+    },
   },
   {
     key: "createTrayIcon",
@@ -410,10 +417,10 @@ class TrayPlugin extends obsidian.Plugin {
     plugin = this;
     createTrayIcon();
     registerHotkeys();
-    setHideTaskbarIcon();
     setLaunchOnStartup();
     observeWindows();
     if (settings.runInBackground) interceptWindowClose();
+    if (settings.hideTaskbarIcon) hideTaskbarIcons();
     if (settings.hideOnLaunch) {
       this.registerEvent(this.app.workspace.onLayoutReady(hideWindows));
     }
@@ -435,6 +442,7 @@ class TrayPlugin extends obsidian.Plugin {
     log(LOG_CLEANUP);
     unregisterHotkeys();
     allowWindowClose();
+    showTaskbarIcons();
     destroyTray();
   }
 
