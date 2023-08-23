@@ -128,9 +128,13 @@ const setLaunchOnStartup = () => {
     unregisterHotkeys();
     allowWindowClose();
     destroyTray();
-    for (const win of getWindows()) win.destroy();
-    // force app quit if no windows remain on macos
-    if (!BrowserWindow.getAllWindows().length) app.quit();
+    const vaultWindows = getWindows(),
+      obsidianWindows = BrowserWindow.getAllWindows();
+    if (obsidianWindows.length === vaultWindows.length) {
+      // quit app directly if only remaining windows are in the
+      // current vault - necessary for successful quit on macos
+      app.quit();
+    } else vaultWindows.forEach((win) => win.destroy());
   };
 
 const addQuickNote = () => {
