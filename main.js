@@ -59,6 +59,19 @@ const vaultWindows = new Set(),
     };
     onWindowCreation(getCurrentWindow());
     getCurrentWindow().webContents.on("did-create-window", onWindowCreation);
+    if (process.platform === "darwin") {
+      // on macos, the "hide taskbar icon" option is implemented
+      // via app.dock.hide(): thus, the app as a whole will be
+      // hidden from the dock, including windows from other vaults.
+      // when a vault is closed via the "close vault" button,
+      // the cleanup process will call app.dock.show() to restore
+      // access to any other open vaults w/out the tray enabled
+      // => thus, this listener is required to re-hide the dock
+      // if switching to another vault with the option enabled
+      getCurrentWindow().on("focus", () => {
+        if (plugin.settings.hideTaskbarIcon) hideTaskbarIcons();
+      });
+    }
   },
   showWindows = () => {
     log(LOG_SHOWING_WINDOWS);
@@ -110,14 +123,21 @@ const hideTaskbarIcons = () => {
   showTaskbarIcons = () => {
     getWindows().forEach((win) => win.setSkipTaskbar(false));
     if (process.platform === "darwin") app.dock.show();
-  };
-
-const setLaunchOnStartup = () => {
+  },
+  setLaunchOnStartup = () => {
     const { launchOnStartup, runInBackground, hideOnLaunch } = plugin.settings;
     app.setLoginItemSettings({
       openAtLogin: launchOnStartup,
       openAsHidden: runInBackground && hideOnLaunch,
     });
+  };
+
+const cleanup = () => {
+    log(LOG_CLEANUP);
+    unregisterHotkeys();
+    showTaskbarIcons();
+    allowWindowClose();
+    destroyTray();
   },
   relaunchApp = () => {
     app.relaunch();
@@ -125,9 +145,7 @@ const setLaunchOnStartup = () => {
   },
   closeVault = () => {
     log(LOG_CLEANUP);
-    unregisterHotkeys();
-    allowWindowClose();
-    destroyTray();
+    cleanup();
     const vaultWindows = getWindows(),
       obsidianWindows = BrowserWindow.getAllWindows();
     if (obsidianWindows.length === vaultWindows.length) {
@@ -454,11 +472,7 @@ class TrayPlugin extends obsidian.Plugin {
     });
   }
   onunload() {
-    log(LOG_CLEANUP);
-    unregisterHotkeys();
-    allowWindowClose();
-    showTaskbarIcons();
-    destroyTray();
+    cleanup();
   }
 
   async loadSettings() {
