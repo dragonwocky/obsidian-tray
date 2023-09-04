@@ -4,7 +4,7 @@
   "author": "dragonwocky",
   "authorUrl": "https://dragonwocky.me/",
   "description": "Run Obsidian from the system tray for customisable window management & global quick notes",
-  "version": "0.3.4",
+  "version": "0.3.5",
   "isDesktopOnly": true,
   "minAppVersion": "1.0.0"
 }

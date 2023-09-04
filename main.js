@@ -1,5 +1,5 @@
 /**
- * obsidian-tray v0.3.4
+ * obsidian-tray v0.3.5
  * (c) 2023 dragonwocky <thedragonring.bod@gmail.com> (https://dragonwocky.me/)
  * (https://github.com/dragonwocky/obsidian-tray/) under the MIT license
  */
@@ -76,7 +76,10 @@ const vaultWindows = new Set(),
   showWindows = () => {
     log(LOG_SHOWING_WINDOWS);
     getWindows().forEach((win) => {
-      maximizedWindows.has(win) ? win.maximize() : win.show();
+      if (maximizedWindows.has(win)) {
+        win.maximize();
+        win.focus();
+      } else win.show();
     });
   },
   hideWindows = () => {
