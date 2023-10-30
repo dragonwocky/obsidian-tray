@@ -15,6 +15,10 @@ const LOG_PREFIX = "obsidian-tray",
   LOG_TRAY_ICON = "creating tray icon",
   LOG_REGISTER_HOTKEY = "registering hotkey",
   LOG_UNREGISTER_HOTKEY = "unregistering hotkey",
+  LOG_QUICK_NOTE_LOCATION = "quick note location",
+  LOG_QUICK_NOTE_EXISTS = "quick note already exists",
+  LOG_QUICK_NOTE_CREATED = "quick note created",
+  LOG_QUICK_NOTE_OPENED = "quick note opened",
   ACTION_QUICK_NOTE = "Quick Note",
   ACTION_SHOW = "Show Vault",
   ACTION_HIDE = "Hide Vault",
@@ -173,10 +177,31 @@ const addQuickNote = () => {
       leaf = plugin.app.workspace.getLeaf(),
       root = plugin.app.fileManager.getNewFileParent(""),
       openMode = { active: true, state: { mode: "source" } };
-    plugin.app.fileManager
-      .createNewMarkdownFile(root, name)
-      .then((file) => leaf.openFile(file, openMode));
-    showWindows();
+
+    log(LOG_QUICK_NOTE_LOCATION + ": " + name);
+    const fileExists = plugin.app.vault.adapter.exists(`${name}.md`);
+
+    fileExists.then((isFile) => {
+      // Check if the file already exists
+      if (isFile === false) {
+        // If it doesn't, create it
+        log(LOG_QUICK_NOTE_CREATED + ": " + name);
+        plugin.app.fileManager
+          .createNewMarkdownFile(root, name)
+          .then((file) => {
+            leaf.openFile(file, openMode);
+            log(LOG_QUICK_NOTE_OPENED + ": " + name);
+          });
+      } else {
+        // If it does, open it
+        log(LOG_QUICK_NOTE_EXISTS + ": " + name);
+        const file = plugin.app.vault.getAbstractFileByPath(`${name}.md`);
+        leaf.openFile(file, openMode);
+        log(LOG_QUICK_NOTE_OPENED + ": " + name);
+      }
+
+      showWindows();
+    });
   },
   replaceVaultName = (str) => {
     return str.replace(/{{vault}}/g, plugin.app.vault.getName());
