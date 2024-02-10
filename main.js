@@ -20,6 +20,11 @@ const LOG_PREFIX = "obsidian-tray",
   LOG_QUICK_NOTE_CREATED = "quick note created",
   LOG_QUICK_NOTE_OPENED = "quick note opened",
   ACTION_QUICK_NOTE = "Quick Note",
+  LOG_DAILY_NOTE_LOCATION = "daily note location",
+  LOG_DAILY_NOTE_EXISTS = "daily note already exists",
+  LOG_DAILY_NOTE_CREATED = "daily note created",
+  LOG_DAILY_NOTE_OPENED = "daily note opened",
+  ACTION_DAILY_NOTE = "Daily Note",
   ACTION_SHOW = "Show Vault",
   ACTION_HIDE = "Hide Vault",
   ACTION_RELAUNCH = "Relaunch Obsidian",
@@ -182,9 +187,7 @@ const addQuickNote = () => {
     const fileExists = plugin.app.vault.adapter.exists(`${name}.md`);
 
     fileExists.then((isFile) => {
-      // Check if the file already exists
-      if (isFile === false) {
-        // If it doesn't, create it
+      if (isFile === false || plugin.settings.quickNoteOpensExistingNote === false) {
         log(LOG_QUICK_NOTE_CREATED + ": " + name);
         plugin.app.fileManager
           .createNewMarkdownFile(root, name)
@@ -193,11 +196,48 @@ const addQuickNote = () => {
             log(LOG_QUICK_NOTE_OPENED + ": " + name);
           });
       } else {
-        // If it does, open it
         log(LOG_QUICK_NOTE_EXISTS + ": " + name);
         const file = plugin.app.vault.getAbstractFileByPath(`${name}.md`);
         leaf.openFile(file, openMode);
         log(LOG_QUICK_NOTE_OPENED + ": " + name);
+      }
+
+      showWindows();
+    });
+  },
+  addDailyNote = () => {
+    const { dailyNoteLocation, dailyNoteDateFormat } = plugin.settings,
+      pattern = dailyNoteDateFormat || DEFAULT_DATE_FORMAT,
+      date = obsidian.moment().format(pattern),
+      name = obsidian
+        .normalizePath(`${dailyNoteLocation ?? ""}/${date}`)
+        .replace(/\*|"|\\|<|>|:|\||\?/g, "-"),
+      // manually create and open file instead of depending
+      // on createAndOpenMarkdownFile to force file creation
+      // relative to the root instead of the active file
+      // (in case user has default location for new notes
+      // set to "same folder as current file")
+      leaf = plugin.app.workspace.getLeaf(),
+      root = plugin.app.fileManager.getNewFileParent(""),
+      openMode = { active: true, state: { mode: "source" } };
+
+    log(LOG_DAILY_NOTE_LOCATION + ": " + name);
+    const fileExists = plugin.app.vault.adapter.exists(`${name}.md`);
+
+    fileExists.then((isFile) => {
+      if (isFile === false) {
+        log(LOG_DAILY_NOTE_CREATED + ": " + name);
+        plugin.app.fileManager
+          .createNewMarkdownFile(root, name)
+          .then((file) => {
+            leaf.openFile(file, openMode);
+            log(LOG_DAILY_NOTE_OPENED + ": " + name);
+          });
+      } else {
+        log(LOG_DAILY_NOTE_EXISTS + ": " + name);
+        const file = plugin.app.vault.getAbstractFileByPath(`${name}.md`);
+        leaf.openFile(file, openMode);
+        log(LOG_DAILY_NOTE_OPENED + ": " + name);
       }
 
       showWindows();
@@ -223,6 +263,12 @@ const addQuickNote = () => {
           label: ACTION_QUICK_NOTE,
           accelerator: plugin.settings.quickNoteHotkey,
           click: addQuickNote,
+        },
+        {
+          type: "normal",
+          label: ACTION_DAILY_NOTE,
+          accelerator: plugin.settings.dailyNoteHotkey,
+          click: addDailyNote,
         },
         {
           type: "normal",
@@ -255,12 +301,15 @@ const addQuickNote = () => {
 const registerHotkeys = () => {
     log(LOG_REGISTER_HOTKEY);
     try {
-      const { toggleWindowFocusHotkey, quickNoteHotkey } = plugin.settings;
+      const { toggleWindowFocusHotkey, quickNoteHotkey, dailyNoteHotkey } = plugin.settings;
       if (toggleWindowFocusHotkey) {
         globalShortcut.register(toggleWindowFocusHotkey, toggleWindows);
       }
       if (quickNoteHotkey) {
         globalShortcut.register(quickNoteHotkey, addQuickNote);
+      }
+      if (dailyNoteHotkey) {
+        globalShortcut.register(dailyNoteHotkey, addDailyNote);
       }
     } catch {}
   },
@@ -359,6 +408,30 @@ const OPTIONS = [
     onBeforeChange: unregisterHotkeys,
     onChange: registerHotkeys,
   },
+  "Daily notes",
+  {
+    key: "dailyNoteLocation",
+    desc: "New daily notes will be placed in this folder.",
+    type: "text",
+    placeholder: "Example: notes/daily",
+  },
+  {
+    key: "dailyNoteDateFormat",
+    desc: `
+      New daily notes will use a filename of this pattern. ${MOMENT_FORMAT}
+      <br>Preview: <b class="u-pop" data-preview></b>
+    `,
+    type: "moment",
+    default: DEFAULT_DATE_FORMAT,
+  },
+  {
+    key: "dailyNoteHotkey",
+    desc: ACCELERATOR_FORMAT,
+    type: "hotkey",
+    default: "CmdOrCtrl+Shift+D",
+    onBeforeChange: unregisterHotkeys,
+    onChange: registerHotkeys,
+  },
   "Quick notes",
   {
     key: "quickNoteLocation",
@@ -379,9 +452,18 @@ const OPTIONS = [
     key: "quickNoteHotkey",
     desc: ACCELERATOR_FORMAT,
     type: "hotkey",
-    default: "CmdOrCtrl+Shift+Q",
+    default: "CmdOrCtrl+Shift+D",
     onBeforeChange: unregisterHotkeys,
     onChange: registerHotkeys,
+  },
+  {
+    key: "quickNoteOpensExistingNote",
+    desc: `
+      If a quick note already exists for the current date, open it instead of
+      creating a new note.
+    `,
+    type: "toggle",
+    default: true,
   },
 ];
 
