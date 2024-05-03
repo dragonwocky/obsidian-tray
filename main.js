@@ -21,7 +21,7 @@ const LOG_PREFIX = "obsidian-tray",
   ACTION_RELAUNCH = "Relaunch Obsidian",
   ACTION_CLOSE = "Close Vault",
   ACTION_OPEN = "Open Vault",
-  ACTION_TOGGLE = "Toggle Vault Window"
+  ACTION_TOGGLE = "Toggle Vault Window",
   DEFAULT_DATE_FORMAT = "YYYY-MM-DD",
   ACCELERATOR_FORMAT = `
     This hotkey is registered globally and will be detected even if Obsidian does
@@ -97,6 +97,19 @@ const vaultWindows = new Set(),
     });
     if (openWindows) hideWindows();
     else showWindows();
+  },
+  toggleVault = (checkForFocus = true) => {
+    const openWindows = getWindows().some((win) => {
+      return (!checkForFocus || win.isFocused()) && win.isVisible();
+    });
+    if (openWindows) hideWindows();
+    else {
+      getWindows().forEach((win) => {
+        win.show();
+        win.minimize();
+        win.maximize();
+      });
+    };
   };
 
 const onWindowClose = (event) => event.preventDefault(),
@@ -483,7 +496,7 @@ class TrayPlugin extends obsidian.Plugin {
     this.addCommand({
       id: "toggle-vault",
       name: ACTION_TOGGLE,
-      callback: toggleWindows,
+      callback: toggleVault,
     });
   }
   onunload() {
