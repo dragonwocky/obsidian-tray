@@ -478,6 +478,7 @@ class TrayPlugin extends obsidian.Plugin {
     cleanup();
   }
 
+  getCurrentWindow = getCurrentWindow
   getWindows = getWindows;
   showWindows = showWindows;
   hideWindows = hideWindows;
