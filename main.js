@@ -478,6 +478,12 @@ class TrayPlugin extends obsidian.Plugin {
     cleanup();
   }
 
+  getCurrentWindow = getCurrentWindow
+  getWindows = getWindows;
+  showWindows = showWindows;
+  hideWindows = hideWindows;
+  toggleWindows = toggleWindows;
+
   async loadSettings() {
     const DEFAULT_SETTINGS = OPTIONS.map((opt) => ({ [opt.key]: opt.default }));
     this.settings = Object.assign(...DEFAULT_SETTINGS, await this.loadData());
