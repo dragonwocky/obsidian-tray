@@ -1,4 +1,4 @@
-/**
+/*
  * obsidian-tray v0.3.5
  * (c) 2023 dragonwocky <thedragonring.bod@gmail.com> (https://dragonwocky.me/)
  * (https://github.com/dragonwocky/obsidian-tray/) under the MIT license
@@ -15,6 +15,7 @@ const LOG_PREFIX = "obsidian-tray",
   LOG_TRAY_ICON = "creating tray icon",
   LOG_REGISTER_HOTKEY = "registering hotkey",
   LOG_UNREGISTER_HOTKEY = "unregistering hotkey",
+  LOG_REGISTER_HANDLER = "registering URI handler",
   ACTION_QUICK_NOTE = "Quick Note",
   ACTION_SHOW = "Show Vault",
   ACTION_HIDE = "Hide Vault",
@@ -247,6 +248,16 @@ const registerHotkeys = () => {
     } catch {}
   };
 
+const registerURIHandlers = (obsidian) => {
+    log(LOG_REGISTER_HANDLER);
+    try {
+      obsidian.registerObsidianProtocolHandler("tray/toggleWindows", () => {
+        toggleWindows();
+      });
+    } catch {}
+  }
+;
+
 const OPTIONS = [
   "Window management",
   {
@@ -453,6 +464,7 @@ class TrayPlugin extends obsidian.Plugin {
     plugin = this;
     createTrayIcon();
     registerHotkeys();
+    registerURIHandlers(this);
     setLaunchOnStartup();
     observeWindows();
     if (settings.runInBackground) interceptWindowClose();
