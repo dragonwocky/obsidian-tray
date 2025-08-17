@@ -97,8 +97,17 @@ const vaultWindows = new Set(),
     else showWindows();
   };
 
+// 全局变量，用于标记是否通过点击链接触发导航
+let isLinkNavigation = false;
+
 const onWindowClose = (event) => event.preventDefault(),
   onWindowUnload = (event) => {
+    if (isLinkNavigation) {
+      // 重置标记以避免影响后续事件
+      isLinkNavigation = false;
+      return;
+    }
+
     log(LOG_WINDOW_CLOSE);
     getCurrentWindow().hide();
     event.stopImmediatePropagation();
@@ -106,8 +115,16 @@ const onWindowClose = (event) => event.preventDefault(),
     // via `return false` according to electron
     event.returnValue = false;
   },
+  onAnchorClick = (event) => {
+    const target = event.target.closest('a');
+    if (target && target.getAttribute('target') !== '_blank') {
+      // 如果是 <a> 元素且没有 target="_blank"，标记为链接导航
+      isLinkNavigation = true;
+    }
+  },
   interceptWindowClose = () => {
     // intercept in renderer
+    document.addEventListener('click', onAnchorClick);
     window.addEventListener("beforeunload", onWindowUnload, true);
     // intercept in main: is asynchronously executed when registered
     // from renderer, so won't prevent close by itself, but counteracts
@@ -115,6 +132,7 @@ const onWindowClose = (event) => event.preventDefault(),
     getCurrentWindow().on("close", onWindowClose);
   },
   allowWindowClose = () => {
+    document.removeEventListener('click', onAnchorClick);
     getCurrentWindow().removeListener("close", onWindowClose);
     window.removeEventListener("beforeunload", onWindowUnload, true);
   };
