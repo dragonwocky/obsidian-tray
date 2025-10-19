@@ -24,7 +24,7 @@ const LOG_PREFIX = "obsidian-tray",
   ACCELERATOR_FORMAT = `
     This hotkey is registered globally and will be detected even if Obsidian does
     not have keyboard focus. Format:
-    <a href="https://www.electronjs.org/docs/latest/api/accelerator" target="_blank" rel="noopener">
+    <a href="https://www.electronjs.org/docs/latest/tutorial/keyboard-shortcuts#accelerators" target="_blank" rel="noopener">
     Electron accelerator</a>
   `,
   MOMENT_FORMAT = `
