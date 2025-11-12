@@ -159,7 +159,7 @@ const cleanup = () => {
   };
 
 const addQuickNote = () => {
-    const { quickNoteLocation, quickNoteDateFormat } = plugin.settings,
+    const { quickNoteLocation, quickNoteDateFormat, quickNoteAlwaysCreate } = plugin.settings,
       pattern = quickNoteDateFormat || DEFAULT_DATE_FORMAT,
       date = obsidian.moment().format(pattern),
       name = obsidian
@@ -172,11 +172,24 @@ const addQuickNote = () => {
       // set to "same folder as current file")
       leaf = plugin.app.workspace.getLeaf(),
       root = plugin.app.fileManager.getNewFileParent(""),
-      openMode = { active: true, state: { mode: "source" } };
-    plugin.app.fileManager
-      .createNewMarkdownFile(root, name)
-      .then((file) => leaf.openFile(file, openMode));
-    showWindows();
+      openMode = { active: true, state: { mode: "source" } },
+      filePath = `${name}.md`;
+    if (quickNoteAlwaysCreate) {
+      plugin.app.fileManager
+        .createNewMarkdownFile(root, name)
+        .then((file) => leaf.openFile(file, openMode))
+        .then(() => showWindows());
+    } else {
+      const existing = plugin.app.vault.getAbstractFileByPath(filePath);
+      if (existing && existing instanceof obsidian.TFile) {
+        leaf.openFile(existing, openMode).then(() => showWindows());
+      } else {
+        plugin.app.fileManager
+          .createNewMarkdownFile(root, name)
+          .then((file) => leaf.openFile(file, openMode))
+          .then(() => showWindows());
+      }
+    }
   },
   replaceVaultName = (str) => {
     return str.replace(/{{vault}}/g, plugin.app.vault.getName());
@@ -357,6 +370,15 @@ const OPTIONS = [
     default: "CmdOrCtrl+Shift+Q",
     onBeforeChange: unregisterHotkeys,
     onChange: registerHotkeys,
+  },
+  {
+    key: "quickNoteAlwaysCreate",
+    desc: `
+      If a quick note with the same name already exists, create a new numbered file.
+      Disable to open the existing file instead.
+    `,
+    type: "toggle",
+    default: true,
   },
 ];
 
