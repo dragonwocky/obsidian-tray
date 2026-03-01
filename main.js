@@ -478,11 +478,12 @@ class TrayPlugin extends obsidian.Plugin {
     cleanup();
   }
 
-  getCurrentWindow = getCurrentWindow
-  getWindows = getWindows;
-  showWindows = showWindows;
-  hideWindows = hideWindows;
-  toggleWindows = toggleWindows;
+  getCurrentWindow() { return getCurrentWindow(); }
+  getWindows() { return getWindows(); }
+  showWindows() { return showWindows(); }
+  hideWindows() { return hideWindows(); }
+  toggleWindows(checkForFocus = true) { return toggleWindows(checkForFocus); }
+  addQuickNote() { return addQuickNote(); }
 
   async loadSettings() {
     const DEFAULT_SETTINGS = OPTIONS.map((opt) => ({ [opt.key]: opt.default }));
