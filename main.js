@@ -48,7 +48,7 @@ const vaultWindows = new Set(),
   observeWindows = () => {
     const onWindowCreation = (win) => {
       vaultWindows.add(win);
-      win.setSkipTaskbar(plugin.settings.hideTaskbarIcon);
+      updateTaskbarIcons();
       win.on("close", () => {
         if (win !== getCurrentWindow()) vaultWindows.delete(win);
       });
@@ -59,22 +59,13 @@ const vaultWindows = new Set(),
     };
     onWindowCreation(getCurrentWindow());
     getCurrentWindow().webContents.on("did-create-window", onWindowCreation);
-    if (process.platform === "darwin") {
-      // on macos, the "hide taskbar icon" option is implemented
-      // via app.dock.hide(): thus, the app as a whole will be
-      // hidden from the dock, including windows from other vaults.
-      // when a vault is closed via the "close vault" button,
-      // the cleanup process will call app.dock.show() to restore
-      // access to any other open vaults w/out the tray enabled
-      // => thus, this listener is required to re-hide the dock
-      // if switching to another vault with the option enabled
-      getCurrentWindow().on("focus", () => {
-        if (plugin.settings.hideTaskbarIcon) hideTaskbarIcons();
-      });
-    }
   },
   showWindows = () => {
     log(LOG_SHOWING_WINDOWS);
+    // restore the dock icon before showing windows so macos
+    // activates the app properly
+    const { hideTaskbarIcon, autoHideTaskbarIcon } = plugin.settings;
+    if (hideTaskbarIcon && autoHideTaskbarIcon) showTaskbarIcons();
     getWindows().forEach((win) => {
       if (maximizedWindows.has(win)) {
         win.maximize();
@@ -88,6 +79,7 @@ const vaultWindows = new Set(),
       win.isFocused() && win.blur(),
       plugin.settings.runInBackground ? win.hide() : win.minimize(),
     ]);
+    updateTaskbarIcons();
   },
   toggleWindows = (checkForFocus = true) => {
     const openWindows = getWindows().some((win) => {
@@ -101,6 +93,7 @@ const onWindowClose = (event) => event.preventDefault(),
   onWindowUnload = (event) => {
     log(LOG_WINDOW_CLOSE);
     getCurrentWindow().hide();
+    updateTaskbarIcons();
     event.stopImmediatePropagation();
     // setting return value manually is more reliable than
     // via `return false` according to electron
@@ -119,13 +112,68 @@ const onWindowClose = (event) => event.preventDefault(),
     window.removeEventListener("beforeunload", onWindowUnload, true);
   };
 
+// app.dock.show() resolves asynchronously, and macos silently
+// drops dock transitions requested while a previous one is still
+// settling (e.g. a hide issued during an in-flight show, which
+// happens on launch with "hide on launch" and when rapidly
+// toggling window focus): track the latest desired state and
+// apply transitions one at a time with a settle delay between
+let desiredDockVisibility = null,
+  dockTransitionInFlight = false;
+const applyDockVisibility = async () => {
+    if (dockTransitionInFlight) return;
+    dockTransitionInFlight = true;
+    try {
+      let retries = 0;
+      while (desiredDockVisibility !== null) {
+        const visible = desiredDockVisibility;
+        desiredDockVisibility = null;
+        try {
+          if (visible) {
+            // guard against a show that never resolves jamming the queue
+            await Promise.race([
+              app.dock.show(),
+              new Promise((resolve) => setTimeout(resolve, 1000)),
+            ]);
+          } else app.dock.hide();
+          // macos needs ~1s to settle a dock transition, and both
+          // swallows transitions requested within that window and
+          // misreports isVisible() during it: wait it out, then
+          // verify the state stuck and retry if it was dropped
+          await new Promise((resolve) => setTimeout(resolve, 1000));
+          if (desiredDockVisibility === null) {
+            if (app.dock.isVisible() !== visible && retries < 3) {
+              retries++;
+              desiredDockVisibility = visible;
+            } else retries = 0;
+          } else retries = 0;
+        } catch {}
+      }
+    } finally {
+      dockTransitionInFlight = false;
+    }
+  },
+  setDockVisibility = (visible) => {
+    if (process.platform !== "darwin") return;
+    desiredDockVisibility = visible;
+    applyDockVisibility();
+  };
+
 const hideTaskbarIcons = () => {
     getWindows().forEach((win) => win.setSkipTaskbar(true));
-    if (process.platform === "darwin") app.dock.hide();
+    setDockVisibility(false);
   },
   showTaskbarIcons = () => {
     getWindows().forEach((win) => win.setSkipTaskbar(false));
-    if (process.platform === "darwin") app.dock.show();
+    setDockVisibility(true);
+  },
+  windowsVisible = () =>
+    getWindows().some((win) => !win.isDestroyed() && win.isVisible()),
+  updateTaskbarIcons = () => {
+    if (!plugin.settings.hideTaskbarIcon) return;
+    if (plugin.settings.autoHideTaskbarIcon && windowsVisible()) {
+      showTaskbarIcons();
+    } else hideTaskbarIcons();
   },
   setLaunchOnStartup = () => {
     const { launchOnStartup, runInBackground, hideOnLaunch } = plugin.settings;
@@ -283,15 +331,26 @@ const OPTIONS = [
   {
     key: "hideTaskbarIcon",
     desc: `
-      Hides the window's icon from from the dock/taskbar. Enabling the tray icon first
+      Hides the window's icon from the dock/taskbar. Enabling the tray icon first
       is recommended if using this option. This may not work on Linux-based OSes.
     `,
     type: "toggle",
     default: false,
     onChange() {
-      if (plugin.settings.hideTaskbarIcon) hideTaskbarIcons();
+      if (plugin.settings.hideTaskbarIcon) updateTaskbarIcons();
       else showTaskbarIcons();
     },
+  },
+  {
+    key: "autoHideTaskbarIcon",
+    desc: `
+      Only hide the dock/taskbar icon while all vault windows are hidden —
+      the icon reappears whenever a window is shown. Has no effect unless
+      "Hide taskbar icon" is enabled.
+    `,
+    type: "toggle",
+    default: false,
+    onChange: () => updateTaskbarIcons(),
   },
   {
     key: "createTrayIcon",
@@ -456,7 +515,23 @@ class TrayPlugin extends obsidian.Plugin {
     setLaunchOnStartup();
     observeWindows();
     if (settings.runInBackground) interceptWindowClose();
-    if (settings.hideTaskbarIcon) hideTaskbarIcons();
+    updateTaskbarIcons();
+    if (process.platform === "darwin") {
+      // window visibility can change without this plugin's
+      // involvement (uri activation, macos restoring the dock
+      // icon itself, another vault's cleanup) and no reliable
+      // renderer-side event exists for those: reconcile actual
+      // dock state against the expected state periodically
+      this.registerInterval(
+        window.setInterval(() => {
+          if (!this.settings.hideTaskbarIcon) return;
+          if (dockTransitionInFlight || desiredDockVisibility !== null) return;
+          const target =
+            this.settings.autoHideTaskbarIcon && windowsVisible();
+          if (app.dock.isVisible() !== target) setDockVisibility(target);
+        }, 2000)
+      );
+    }
     if (settings.hideOnLaunch) {
       this.registerEvent(this.app.workspace.onLayoutReady(hideWindows));
     }
