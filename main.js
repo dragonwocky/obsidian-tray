@@ -76,10 +76,9 @@ const vaultWindows = new Set(),
   showWindows = () => {
     log(LOG_SHOWING_WINDOWS);
     getWindows().forEach((win) => {
-      if (maximizedWindows.has(win)) {
-        win.maximize();
-        win.focus();
-      } else win.show();
+      if (maximizedWindows.has(win)) win.maximize();
+      else win.show();
+      win.focus();
     });
   },
   hideWindows = () => {
@@ -97,7 +96,8 @@ const vaultWindows = new Set(),
     else showWindows();
   };
 
-const onWindowClose = (event) => event.preventDefault(),
+const onSecondInstance = () => showWindows(),
+  onWindowClose = (event) => event.preventDefault(),
   onWindowUnload = (event) => {
     log(LOG_WINDOW_CLOSE);
     getCurrentWindow().hide();
@@ -140,6 +140,7 @@ const cleanup = () => {
     unregisterHotkeys();
     showTaskbarIcons();
     allowWindowClose();
+    app.removeListener("second-instance", onSecondInstance);
     destroyTray();
   },
   relaunchApp = () => {
@@ -455,6 +456,7 @@ class TrayPlugin extends obsidian.Plugin {
     registerHotkeys();
     setLaunchOnStartup();
     observeWindows();
+    app.prependListener("second-instance", onSecondInstance);
     if (settings.runInBackground) interceptWindowClose();
     if (settings.hideTaskbarIcon) hideTaskbarIcons();
     if (settings.hideOnLaunch) {
