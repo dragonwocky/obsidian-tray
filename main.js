@@ -76,10 +76,12 @@ const vaultWindows = new Set(),
   showWindows = () => {
     log(LOG_SHOWING_WINDOWS);
     getWindows().forEach((win) => {
-      if (maximizedWindows.has(win)) {
-        win.maximize();
-        win.focus();
-      } else win.show();
+      // a window hidden while minimised keeps reporting isVisible() === false
+      // and show() does not restore it, so restore() has to come first.
+      if (win.isMinimized()) win.restore();
+      if (maximizedWindows.has(win)) win.maximize();
+      win.show();
+      win.focus();
     });
   },
   hideWindows = () => {
@@ -216,15 +218,17 @@ const addQuickNote = () => {
         { label: ACTION_CLOSE, click: closeVault },
       ]);
     tray = new Tray(obsidianIcon);
-    tray.setContextMenu(contextMenu);
+    // note: setContextMenu() suppresses the "click" event on windows, so the
+    // menu is opened manually from the right-click handler instead.
     tray.setToolTip(replaceVaultName(plugin.settings.trayIconTooltip));
     tray.on("click", () => {
       if (process.platform === "darwin") {
         // macos does not register separate left/right click actions
         // for menu items, icon should open menu w/out causing toggle
-        tray.popUpContextMenu();
-      } else toggleWindows(false);
+        tray.popUpContextMenu(contextMenu);
+      } else showWindows();
     });
+    tray.on("right-click", () => tray.popUpContextMenu(contextMenu));
   };
 
 const registerHotkeys = () => {
