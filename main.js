@@ -48,6 +48,12 @@ const vaultWindows = new Set(),
   observeWindows = () => {
     const onWindowCreation = (win) => {
       vaultWindows.add(win);
+      // Hidden tray windows must keep Sync's timer-driven queue running.
+      const throttled = win.webContents.getBackgroundThrottling();
+      win.webContents.setBackgroundThrottling(false);
+      plugin.register(() => {
+        if (!win.isDestroyed()) win.webContents.setBackgroundThrottling(throttled);
+      });
       win.setSkipTaskbar(plugin.settings.hideTaskbarIcon);
       win.on("close", () => {
         if (win !== getCurrentWindow()) vaultWindows.delete(win);
@@ -458,7 +464,7 @@ class TrayPlugin extends obsidian.Plugin {
     if (settings.runInBackground) interceptWindowClose();
     if (settings.hideTaskbarIcon) hideTaskbarIcons();
     if (settings.hideOnLaunch) {
-      this.registerEvent(this.app.workspace.onLayoutReady(hideWindows));
+      this.app.workspace.onLayoutReady(hideWindows);
     }
 
     // add as command: can be called from command palette
